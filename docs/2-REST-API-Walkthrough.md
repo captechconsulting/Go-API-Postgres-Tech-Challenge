@@ -18,6 +18,9 @@
 	- [user.go Setup](#usergo-setup)
 	- [Gin Engine Setup](#gin-engine-setup)
 	- [main.go Setup and Running Application](#maingo-setup-and-running-application)
+- [Unit Testing](#unit-testing)
+	- [Unit Testing Introduction](#unit-testing-introduction)
+	- [Unit Testing in This Tech Challenge](#unit-testing-in-this-tech-challenge)
 
 
 ## Overview
@@ -484,3 +487,17 @@ log.Fatal(app.Run())
 ```
 
 At this point, you should be able to run your appliacation. You can do this using the make command `make start-web-app` or using basic go build and run commands. If you encounter issues, ensure that your database container is running in podman, and that there are no syntax errors present in the code.
+
+## Unit Testing
+
+### Unit Testing Introduction
+
+It is important with any language to test your code. Go make it easy to write unit tests, with a robust built-in testing framework. For a brief introduction on unit testing in Go, check out [this YouTube video](https://www.youtube.com/watch?v=FjkSJ1iXKpg).
+
+### Unit Testing in This Tech Challenge
+
+Unit testing is a required part of this tech challenge. There are not specific requirements for exactly how you must write your unit tests, but keep the following in mind as you go through the challenge:
+
+- Go prefers to use table-driven, parallel unit tests. For more information on this, check out the [Go Wiki](https://go.dev/wiki/TableDrivenTests).
+- Try to write your code in a way that is, among other things, easy to test. Go's preference for interfaces facilitates this nicely, and it can make your life easier when writing tests.
+- There are already make targets set up to run unit tests. Specifically `check-coverage`. Feel free to modify these and add more if you would like to tailor them to your own preferences.
