@@ -75,10 +75,11 @@ Below are the details for the required and optional endpoints
 - [ ] Your project should include code to generate a swagger spec.
 - [ ] Your project should include unit tests with 80% test coverage.
 
-## Submission Steps
+## Grading Procedure
 
-1. Navigate to your Github repository
-2. Make sure that all your work is checked in a separate branch from the starting branch
-3. Open a pull request from your working ranch to the starting branch
-4. Add the following reviewers so they will receive a notification that your solution is ready for review:
-   - TODO: Add Graders
+Once you are ready for your assignment to be graded, ensure that the main branch in your fork is up-to-date with your latest code. Then send a message in the tech challenge tab in the [Go CoP Teams Channel](https://teams.microsoft.com/l/channel/19%3A3c94e4b29e984baa9a8706b3927a4045%40thread.skype/CoP%20-%20Go?groupId=ba34e7be-d35e-4965-9e36-5e86ae0329c7&tenantId=ae9d6e9a-cc18-4204-ac29-43a0ccb860e8). Challenges are reviewed weekly. Include the following in your message:
+- Your name
+- Link to your repo
+- Any additional comments you think the graders should see
+
+Once you send us a message, we will get in contact. Ensure that the graders will have access to the repository.

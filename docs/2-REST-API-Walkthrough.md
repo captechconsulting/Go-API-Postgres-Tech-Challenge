@@ -17,6 +17,7 @@
 	- [routes.go Setup](#routesgo-setup)
 	- [user.go Setup](#usergo-setup)
 	- [Gin Engine Setup](#gin-engine-setup)
+	- [Generating Swagger Docs](#generating-swagger-docs)
 	- [main.go Setup and Running Application](#maingo-setup-and-running-application)
 - [Unit Testing](#unit-testing)
 	- [Unit Testing Introduction](#unit-testing-introduction)
@@ -441,7 +442,96 @@ func (a *BlogApplication) Run() error {
 }
 ```
 
-Now that we have our gin engine set up, we can start up our application and hit our endpoints! Navigate to `cmd/http/main.go`. 
+Now that we have our gin engine set up, lets walk through generating our swagger documentation for our endpoints.
+
+### Generating Swagger Docs
+
+To add swagger to our application, ensure that you have already installed swaggo to the project using the command below in your terminal:
+
+```
+go install github.com/swaggo/swag/cmd/swag@latest
+```
+
+Next, we will need to provide swagger basic information to help generate our swagger documentation. Above the `Run()` method, add the following comments:
+
+```
+//	@title			Blog Service API
+//	@version		1.0
+//	@description	Practice Go Gin API using GORM and Postgres
+//	@termsOfService	http://swagger.io/terms/
+//	@contact.name	API Support
+//	@contact.url	http://www.swagger.io/support
+//	@contact.email	support@swagger.io
+//	@license.name	Apache 2.0
+//	@license.url	http://www.apache.org/licenses/LICENSE-2.0.html
+//	@host		localhost:8080
+//	@BasePath	/api
+// @externalDocs.description	OpenAPI
+// @externalDocs.url			https://swagger.io/resources/open-api/
+```
+
+For more detailed description on what each annotation does, please see [Swaggo's Declarative Comments Format](https://github.com/swaggo/swag?tab=readme-ov-file#declarative-comments-format)
+
+Next, we will add swagger comments for each of our endpoints. Head over to `cmd/http/routes/user.go`. Above the `getUserByID` function, add the following comments:
+
+```
+// @Summary		Fetch User
+// @Description	Fetch User by ID
+// @Tags			user
+// @Accept			json
+// @Produce		json
+// @Param			id	path		string	true	"User ID"
+// @Success		200	{object}	routes.userResponse
+// @Failure		400	{object}	routes.ErrorResponse
+// @Failure		404	{object}	routes.ErrorResponse
+// @Failure		500	{object}	routes.ErrorResponse
+// @Router			/user/{id} [GET]
+```
+
+The above comments help identify to swagger important information like the path of the endpoint, any parameters or request bodies, and response types and objects. For more information about each annotation and additional annotations you will need, see [Swaggo Api Operation](https://github.com/swaggo/swag?tab=readme-ov-file#api-operation).
+
+Now add the proper swagger comments for the following method signatures:
+
+```
+func getUsers(s userService) func(c *gin.Context)
+func createUser(s userService) func(c *gin.Context)
+func updateUser(s userService) func(c *gin.Context)
+func deleteUser(s userService) func(c *gin.Context)
+```
+
+You are almost there! We can now attach swagger to our project and generate the documentation based off our comments. In the `newEngine` function, add the following line right below `router := gin.Default()`:
+
+```
+router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+```
+
+> **Note:** You will also need to add the following imports at the top of the file
+>
+> ```
+> swaggerFiles "github.com/swaggo/files"
+> ginSwagger "github.com/swaggo/gin-swagger"
+> ```
+Next, generate the swagger documentation by running the following make command:
+
+```
+make swag-init
+```
+
+If successful, this should generate the swagger documentation for the project and place it in `cmd/http/docs`.
+
+> **Important:** The documentation that was just created may contain an error at the end of the file which will need to be handled before starting the application. To fix this, proceed over to the newly generated `cmd/http/docs/docs.go` file and remove the following two lines at the end of the project:
+> ```
+> LeftDelim:        "{{",
+> RightDelim:       "}}",
+> ```
+> This issue appears to occur every time you generate the swagger documentation, and will be something to note as you continue working through the tech challenge
+Finally, proceed over to `cmd/http/main.go` and add the following to your list of imports. Remember to replace `[name]` with your name:
+
+```
+_ "github.com/[name]/blog/cmd/http/docs"
+```
+
+Congrats! You have now generated the swagger documentation for our application! We can now start up our application and hit our endpoints!
 
 ### main.go Setup and Running Application
 

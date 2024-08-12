@@ -9,11 +9,18 @@ The challenge consists of three parts. In part 1, developers will handle the tec
 
 ## Learning Objectives
 
-TODO
+- Understand basic idioms of Go: project structure, syntax, testing, etc.
+- Develop a familiarity with setting up and maintaining Go development environments
+- Gain the ability to work with common Go packages
 
 ## Grading Criteria
 
-Create a new git branch, commit all of your changes, and submit a pull request after completing the challenge and request a review from [ADD GRADER HERE]
+Your code will be graded on the following:
+- How well the code completes the objective outlined in the assignment
+- How well your code follows the idioms of Go
+- How well your unit tests actually test the code
+- How clean your code is
+
 
 ## Prerequisites
 
