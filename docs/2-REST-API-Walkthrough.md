@@ -591,3 +591,7 @@ Unit testing is a required part of this tech challenge. There are not specific r
 - Go prefers to use table-driven, parallel unit tests. For more information on this, check out the [Go Wiki](https://go.dev/wiki/TableDrivenTests).
 - Try to write your code in a way that is, among other things, easy to test. Go's preference for interfaces facilitates this nicely, and it can make your life easier when writing tests.
 - There are already make targets set up to run unit tests. Specifically `check-coverage`. Feel free to modify these and add more if you would like to tailor them to your own preferences.
+
+## Next Steps
+
+You are now ready to move on to the rest of the challenge. You can find the instructions for that [here](./3-Challenge-Assignment.md).
