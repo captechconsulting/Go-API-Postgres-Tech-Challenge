@@ -12,12 +12,14 @@ In order to complete the challenge, the following are required to be installed a
 
 It is recommended to use [Visual Studio Code](https://code.visualstudio.com/) as your IDE while working through this tech challenge. This is because Visual Studio has a rich set of extensions that will aid you as you progress through the exercise. However, you are free to use your preferred IDE.
 
-After installing Visual Studio Code, you should head to the Extensions tab and install the following extensions:
+After installing Visual Studio Code, you should head to the Extensions tab and install the following extensions*:
 - [Go](https://marketplace.visualstudio.com/items?itemName=golang.Go)
 - [PostgreSQL](https://marketplace.visualstudio.com/items?itemName=ms-ossdata.vscode-postgresql)
 
 Other useful VS Code extensions include:
 - [ENV](https://marketplace.visualstudio.com/items?itemName=IronGeek.vscode-env)
+
+*Note that you may have to restart VSCode after installing some extensions for them to take effect.
 
 ## Database Setup
 
@@ -53,7 +55,7 @@ Password: goChallenge
 > 
 > ---
 
-- Once you have connected to the database, open a new sql script. Then, copy and paste the SQL commands into the sql script from the `database_postgres_setup.sql` file under the `/database` directory. At this point, have now initialized your database and are ready to continue.
+- Once you have connected to the database, open a new sql script. Then, copy and paste the SQL commands into the sql script from the `database_postgres_setup.sql` file under the `/database` directory. At this point, you have now initialized your database and are ready to continue.
 
 ## Create Go Module and Install Necessary Libraries
 

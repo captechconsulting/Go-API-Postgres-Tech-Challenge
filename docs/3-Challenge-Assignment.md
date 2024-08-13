@@ -72,7 +72,7 @@ Below are the details for the required and optional endpoints
 - [ ] Your API should have a single entry point.
 - [ ] Each endpoint should return the appropriate status code with each response.
 - [ ] If an error is encountered by the application, an informative error message should be returned to the client.
-- [ ] Your project should include code to generate a swagger spec.
+- [ ] The swagger spec should document all the required and optional endpoints, including their parameters, request body structure, and response types.
 - [ ] Your project should include unit tests with 80% test coverage.
 
 ## Grading Procedure

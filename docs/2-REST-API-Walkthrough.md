@@ -3,7 +3,7 @@
 ## Table of Contents
 - [Overview](#overview)
 - [Project Structure](#project-structure)
-- [Databse Setup](#databse-setup)
+- [Database Setup](#database-setup)
 	- [Configure the Connection to the Database](#configure-the-connection-to-the-database)
 	- [Load and Validate the Environment Variables](#load-and-validate-the-environment-variables)
 	- [Make a Utility Function to Connect to PostgreSQL](#make-a-utility-function-to-connect-to-postgresql)
@@ -59,7 +59,7 @@ The `Makefile` contains various `make` commands that will be helpful throughout 
 
 Now that you are familiar with the current structure of the project, we can begin connecting our application to our database.
 
-## Databse Setup
+## Database Setup
 
 We will first begin by setting up the database layer of our application.
 
