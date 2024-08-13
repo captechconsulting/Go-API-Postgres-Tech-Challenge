@@ -21,6 +21,10 @@ Other useful VS Code extensions include:
 
 *Note that you may have to restart VSCode after installing some extensions for them to take effect.
 
+## Repository Setup
+
+Create your own repository using the `Use this template` in the top right of the webpage. Make yourself the owner, and give the repository the same name as the template (golang-techchallenge1). Once your repository is cloned locally, you are all set to move on to the next step.
+
 ## Database Setup
 
 In order to initialize the database, the following setup will be required.
