@@ -46,14 +46,17 @@ Makefile
 Before beginning to look through the project structure, ensure that you first understand the basics of Go project structuring. As a good starting place, check out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team, or check out [this Markdown file](https://gist.github.com/ayoubzulfiqar/9f1a34049332711fddd4d4b2bfd46096) with a common structure. It is important to note, that one size does not fit all Go projects. It may make more sense to vary from these common structures, depending on the work you are doing.
 
 
-The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will only need one entrypoint into the application, `http`. However, as an extension, you could implement more entrypoints.
+The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will only need one entrypoint into the application, `api`. 
 
-The `cmd/http` folder contains the entrypoint code specific to setting up a webserver for our application. This includes the handler functions for the various endpoints.
+The `cmd/api` folder contains the entrypoint code specific to setting up a webserver for our application. This code should be very minimal and is primarily focused on initializing dependencies for our application then starting the application.
 
 The `internal/` folder contains internal packages that comprise the bulk of the application logic for the challenge:
-- The `config` package contains utilities for configuring the database
-- The `database` package contains logic for connecting to and hydrating the database, interacting with the database, and models for the various entities we will be working with
-- The `service` package is responsible for the main application logic that will be called by the handlers, and will utilize the `database` package
+- `config` contains our application configuration
+- `database` contains logic for connecting to the database
+- `handlers` contains our http handlers which are the functions that execute when a request is sent to the application
+- `models` contains domain models for the application
+- `routes` contains our route definitions which map a URL to a handler
+- `services` contains our service layer which is responsible for our application logic
 
 The `Makefile` contains various `make` commands that will be helpful throughout the project. We will reference these as they are needed. Feel free to look through the `Makefile` to get an idea for what's there or add your own make targets.
 
@@ -146,7 +149,7 @@ We will use this `ConnectDb()` helper function in our `main.go` file to create a
 
 ### Test the Connection to the Database
 
-You can now connect the application to the database. Add the following lines to that main function in your `cmd/http/main.go` file so it looks like below:
+You can now connect the application to the database. Add the following lines to that main function in your `cmd/api/main.go` file so it looks like below:
 ```
 config, err := c.LoadConfig(".")
 	if err != nil {
@@ -365,7 +368,7 @@ func NewBlogApplication(userService userService) BlogApplication {
 
 ### user.go Setup
 
-Now, move over to the `cmd/http/routes/user.go` file. In here, we will implement the various handler functions that the gin engine will eventually use. Start by defining the a couple of the errors our API will return:
+Now, move over to the `internal/routes/user.go` file. In here, we will implement the various handler functions that the gin engine will eventually use. Start by defining the a couple of the errors our API will return:
 
 ```
 var (
@@ -472,7 +475,7 @@ Next, we will need to provide swagger basic information to help generate our swa
 
 For more detailed description on what each annotation does, please see [Swaggo's Declarative Comments Format](https://github.com/swaggo/swag?tab=readme-ov-file#declarative-comments-format)
 
-Next, we will add swagger comments for each of our endpoints. Head over to `cmd/http/routes/user.go`. Above the `getUserByID` function, add the following comments:
+Next, we will add swagger comments for each of our endpoints. Head over to `internal/routes/user.go`. Above the `getUserByID` function, add the following comments:
 
 ```
 // @Summary		Fetch User
@@ -517,18 +520,18 @@ Next, generate the swagger documentation by running the following make command:
 make swag-init
 ```
 
-If successful, this should generate the swagger documentation for the project and place it in `cmd/http/docs`.
+If successful, this should generate the swagger documentation for the project and place it in `cmd/api/docs`.
 
-> **Important:** The documentation that was just created may contain an error at the end of the file which will need to be handled before starting the application. To fix this, proceed over to the newly generated `cmd/http/docs/docs.go` file and remove the following two lines at the end of the project:
+> **Important:** The documentation that was just created may contain an error at the end of the file which will need to be handled before starting the application. To fix this, proceed over to the newly generated `cmd/api/docs/docs.go` file and remove the following two lines at the end of the project:
 > ```
 > LeftDelim:        "{{",
 > RightDelim:       "}}",
 > ```
 > This issue appears to occur every time you generate the swagger documentation, and will be something to note as you continue working through the tech challenge
-Finally, proceed over to `cmd/http/main.go` and add the following to your list of imports. Remember to replace `[name]` with your name:
+Finally, proceed over to `cmd/api/main.go` and add the following to your list of imports. Remember to replace `[name]` with your name:
 
 ```
-_ "github.com/[name]/blog/cmd/http/docs"
+_ "github.com/[name]/blog/cmd/api/docs"
 ```
 
 Congrats! You have now generated the swagger documentation for our application! We can now start up our application and hit our endpoints!

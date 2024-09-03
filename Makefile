@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 .PHONY: swag-init
 swag-init:
-	swag init -g cmd/http/routes/routes.go --output "cmd/http/docs"
+	swag init -g internal/routes/routes.go --output "cmd/api/docs"
 	swag fmt
 
 .PHONY: start-web-app 
@@ -10,7 +10,7 @@ start-web-app:
 	@$(MAKE) LOG MSG_TYPE=info LOG_MESSAGE="Starting web app..."
 	@$(MAKE) start-database
 	@$(MAKE) LOG MSG_TYPE=success LOG_MESSAGE="Started database"
-	@go run cmd/http/main.go
+	@go run cmd/api/main.go
 
 .PHONY: stop-web-app
 stop-web-app:
@@ -40,12 +40,12 @@ stop-database:
 
 
 run-unit-test:
-	go test -cover ./internal/service ./internal/config ./internal/database ./cmd/http/routes ./cmd/http
+	go test -cover ./internal/service ./internal/config ./internal/database ./internal/routes ./cmd/api
 
 .PHONY: check-coverage
 check-coverage:
 	@$(MAKE) LOG MSG_TYPE=info LOG_MESSAGE="Running unit tests and generating coverage report..."
-	go test -coverprofile=coverage.out ./internal/service ./internal/config ./internal/database ./cmd/http/routes ./cmd/http
+	go test -coverprofile=coverage.out ./internal/service ./internal/config ./internal/database ./cmd/routes ./cmd/api
 	go tool cover -html=coverage.out -o coverage.html
 	@$(MAKE) LOG MSG_TYPE=warn LOG_MESSAGE="Link to coverage report file: file://$$(PWD)/coverage.html"
 
