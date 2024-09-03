@@ -220,7 +220,7 @@ if err != nil {
 	return fmt.Errorf("[in main.run] failed to open database: %w", err)
 }
 
-log.Println("onnected successfully to the database")
+log.Println("Connected successfully to the database")
 
 // ... other code from run
 ```
