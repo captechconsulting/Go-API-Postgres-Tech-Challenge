@@ -33,20 +33,21 @@ As previously mentioned, this challenge is centered around the use of the `net/h
 By default, you should see the following file structure in your root directory
 
 ```
-cmd/
-  api/
-    main.go
-internal/
-  config/
-		config.go
-	handlers/
-	routes/
-		routes.go
-  services/
-		user.go
-.gitignore
-Makefile
-README.md
+.
+├── cmd/
+│   └── api/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── handlers
+│   ├── routes/
+│   │   └── routes.go
+│   └── services/
+│       └── user.go
+├── .gitignore
+├── Makefile
+└── README.md
 ```
 
 Before beginning to look through the project structure, ensure that you first understand the basics of Go project structuring. As a good starting place, check out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team. It is important to note that one size does not fit all Go projects. Applications can be designed on a spectrum ranging from very lean and flat layouts, to highly structured and nested layouts. This challenge will sit in the middle, with a layout that can be applied to a broad set of Go applications.
