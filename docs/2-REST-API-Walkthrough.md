@@ -89,7 +89,7 @@ CLIENT_ORIGIN=http://localhost:3000
 
 ### Load and Validate Environment Variables
 
-To handle loading environment variables into the application, we will utilize the `env` package from `caarlos0` as well as the `godotenv` package. 
+To handle loading environment variables into the application, we will utilize the `env` package from `caarlos0` as well as the `godotenv` package.
 
 If you have not already done so, download these packages by running the following command in your terminal:
 
@@ -126,7 +126,7 @@ Now, add the following function to the file:
 // Config struct or error.
 func New() (Config, error) {
 	// Load values from a .env file and add them to system environment variables.
-	// Discard errors coming from this function. This allows us to call this 
+	// Discard errors coming from this function. This allows us to call this
 	// function without a .env file which will by default load values directly
 	// from system environment variables.
 	_ = godotenv.Load()
@@ -187,62 +187,46 @@ To initialize our connection we're going to use the `gorm` package and it's unde
 First, download the `gorm` package:
 
 ```sh
-go get -u gorm.io/gorm
+go get -u gorm.io/gorm gorm.io/driver/postgres
 ```
 
 Then, in the `cmd/api/main.go` file, update `run` to contain the snippet below:
 
 ```go
-func run(ctx context.Context, w io.Writer) error {
-	// ... setting up cancellation
+// ... other code from run
 
-	db, err := gorm.Open(d, c)
-	if err != nil {
-		return fmt.Errorf("[in main.run] failed to open database: %w", err)
-	}
-
-	// ... future initialization 
-
-	return nil
+// Load and validate environment config
+cfg, err := config.New()
+if err != nil {
+	return fmt.Errorf("[in main.run] failed to load config: %w", err)
 }
+
+// Create a new DB connection using environment config
+db, err := gorm.Open(
+	postgres.Open(
+		fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+			config.DBHost,
+			config.DBUserName,
+			config.DBUserPassword,
+			config.DBName,
+			config.DBPort,
+		)
+	),
+	&gorm.Config{})
+
+if err != nil {
+	return fmt.Errorf("[in main.run] failed to open database: %w", err)
+}
+
+log.Println("onnected successfully to the database")
+
+// ... other code from run
 ```
-
-We will use this `ConnectDb()` helper function in our `main.go` file to create a new connection with the database upon start-up.
-
-### Test the Connection to the Database
-
-You can now connect the application to the database. Add the following lines to that main function in your `cmd/api/main.go` file so it looks like below:
-
-```
-config, err := c.LoadConfig(".")
-	if err != nil {
-		log.Fatal("error loading configuration", err)
-	}
-	db, err := database.ConnectDb(
-		postgres.Open(
-			fmt.Sprintf(
-				"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
-				config.DBHost,
-				config.DBUserName,
-				config.DBUserPassword,
-				config.DBName,
-				config.DBPort,
-			),
-		),
-		&gorm.Config{},
-	)
-	// db, err := database.ConnectDB(config.DBHost, config.DBUserName, config.DBUserPassword, config.DBName, config.DBPort)
-	if err != nil {
-		log.Fatal("error connecting to database", err)
-	}
-	fmt.Println("Connected successfully to the database")
-```
-
-\* Note you may need to install the `gorm.io/driver/postgres` package
 
 At this point, you can now test to see if you application is able to successfully connect to the Postgres database. To do so, open a terminal in the project root directory and run the command `go run main.go`. You should see the following output:
 
-```
+```sh
 Connected Successfully to the database
 ```
 
@@ -252,11 +236,11 @@ If your application is unable to connect to the database, ensure that the podman
 
 ### Setting up User Model
 
-Now that we have been able to successfully able to connect to the database, we will set up some basic database utilities for the users in our application.
+Now that we can connect to the database we'll set up our user domain model. This model is our internal, domain specific representation of a User. Effectively it represents how a User is stored in our database.
 
-Create an `entites.go` file in the `database` package. This file will be used to hold the models for the structs that will be mapped to the objects in the database. Add the following struct:
+Create a `user.go` file in the `internal/models` package. Add the following struct:
 
-```
+```go
 type User struct {
 	ID       uint   `json:"id"`
 	Name     string `json:"name"`
@@ -265,136 +249,91 @@ type User struct {
 }
 ```
 
-### Setting up User Utilities
+### Creating our User Service
 
-Next, create a file called `user.go` in the `database` package. This file will house the functionality for creating, reading, updating and deleting users in the database.
+Next, we'll begin to build out the service layer in our application. Our service layer is where all of our application logic (including database access) will live. It's important to remember that there are many ways to structure Go applications. We're following a very basic layered architecture that places most of our logic and dependencies in our services. This allows our handlers to focus on request and response logic, and gives us a single point to find application logic.
 
-We will first be creating a `GetUserByID` method on the `Database` struct to retrieve a user from the database with a given ID called `GetUserByID`.
+Start by creating a new `users.go` file in the `internal/services` package. This file will hold the definitions for our user service.
 
-Here is an implementation of `GetUserByID` that you can use:
+Next, add the following struct, constructor function, and methods to the `users.go` file:
 
-```
-func (database Database) GetUserByID(id uint64) (*User, error) {
-	var user User
-	result := database.DB.First(&user, id)
-	if result.Error != nil {
-		return nil, fmt.Errorf("error getting user: %w", result.Error)
+```go
+// UsersService is a service capable of performing CRUD operations for
+// models.User models.
+type UsersService struct {
+	logger *slog.Logger
+	db 		 *gorm.DB
+}
+
+// NewUsersService creates a new UsersService and returns a pointer to it.
+func NewUsersService(logger *slog.Logger, db *gorm.DB) *UsersService {
+	return &UsersService{
+		logger: logger,
+		db: db,
 	}
+}
 
-	return &user, nil
+// CreateUser attempts to create the provided user, returning a fully hydrated
+// models.User or an error.
+func (s *UsersService) CreateUser(user models.User) (models.User, error) {
+	return models.User{}, nil
+}
+
+// ReadUser attempts to read a user from the database using the provided id. A
+// fully hydrated models.User or error is returned.
+func (s *UsersService) ReadUser(id uint64) (models.User, error) {
+	return models.User{}, nil
+}
+
+// UpdateUser attempts to perform an update of the user with the provided id,
+// updating, it to reflect the properties on the provided patch object. A
+// models.User or an error.
+func (s *UsersService) UpdateUser(id uint64, patch models.User) (models.User, error) {
+	return models.User{}, nil
+}
+
+// CreateUser attempts to create the provided user, returning a fully hydrated
+// models.User or an error.
+func (s *UsersService) DeleteUser(id uint64) error {
+	return nil
+}
+
+// CreateUser attempts to create the provided user, returning a fully hydrated
+// models.User or an error.
+func (s *UsersService) ListUsers(id uint64) ([]models.User, error) {
+	return []models.User{}, nil
 }
 ```
 
-Let's quickly walk through the structure of this function, as it will serve as a sort of template for other similar methods:
+Now we've stubbed out a basic `UsersService` capable of performing CRUD on our User model. Next we'll flesh out the `Read` method.
 
-- First, a User var is created, which will hold the information of the user we search for
+Update the `Read` method to below:
+
+```go
+func (s *UsersService) Read(id uint64) (User, error) {
+	var user User
+
+	if err := s.db.First(&user, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return user, nil
+		}
+		return user, fmt.Errorf("[in services.UserService.Read] failed to read user: %w", err)
+	}
+
+	return user, nil
+}
+```
+
+Let's quickly walk through the structure of this method, as it will serve as a sort of template for other similar methods:
+
+- First, a `user` var is created, which will hold the information of the user we search for
 - Next, the information of the user is retrieved using the `First` method on our database connection. For documentation on this and other similar methods, see the Gorm docs [here](https://gorm.io/docs/query.html). Note that we pass a pointer for the `user` var we declared so that the information can be bound to the object.
 - Next, we check if there was an error retrieving the information, and if there was, we wrap the error and return it
-- If there was no error, we return a pointer to `user`, which contains the user information
+- If there was no error, we return the `user`
 
-Now, go through an implement similar methods with the following method signatures:
+Now, go through an implement the other CRUD methods.
 
-```
-func (database Database) GetUsers(name string) ([]User, error)
-func (database Database) CreateUser(user *User) (*User, error)
-func (database Database) UpdateUser(id uint64, user *User)
-func (database Database) DeleteUser(id uint64) error
-```
-
-These methods should leverage the `Where`, `First`, `Create`, `Model`, `Updates`, and `Delete` methods on the `DB` object on `database`. It is possible that there are other ways of implementing these methods and you should feel free to implement them as you see fit.
-
-## Service Setup
-
-Now that the database layer of our application is set up, we will set up the web server layer
-
-### Defining Models
-
-We will now set up a user service in the `service` package
-
-We will first define a few structs that will be referenced later on. Begin by defining a User struct, similar to how we did in the `database` package:
-
-```
-type User struct {
-	ID       uint   `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-```
-
-This may seem redundant, since this model contains nearly the same information as the model in the `database` package did. There are many approaches to defining models like this in go. Some projects opt for defining models in a centralized `models` package, to be reused in different places throughout the program. Others define models in the packages or bounded contexts where they are used. There is no one-size-fits-all approach. It is important to come up with a design that balances separation of concerns, ease of use, minimizing boilerplate and any other concerns related to data modeling. For this project, we will define separate models in the various layers of the application and translate between them as necessary.
-
-Next define a `databaseSession` interface as follows:
-
-```
-type databaseSession interface {
-	GetUsers(name string) ([]database.User, error)
-	GetUserByID(id uint64) (*database.User, error)
-	CreateUser(user *database.User) (*database.User, error)
-	UpdateUser(id uint64, user *database.User) error
-	DeleteUser(id uint64) error
-}
-```
-
-Notice the parallels between the methods in the `databaseSession` interface and the methods we defined on the `database` in the previous section.
-
-We can now define a `UserService` struct as well as a function `NewUserService` for creating a new `UserService`:
-
-```
-type UserService struct {
-	Database databaseSession
-}
-
-func NewUserService(db databaseSession) UserService {
-	return UserService{Database: db}
-}
-```
-
-We have now defined an object (`UserService`) which will ultimately take in the `database` object that we implemented in the previous section in order to interact with the database.
-
-### Implementing UserService Methods
-
-Next we will define the methods on the `UserService`. We will start by creating a `GetUserByID` method that takes in an ID and retrieves that user from the database. Before we do this, however, we will make a helper function to translate between the user model defined in the `service` package and the user model defined in the `database` package. This can be done with the following:
-
-```
-func userFromDBUser(dbUser *database.User) User {
-	return User{
-		ID:       dbUser.ID,
-		Name:     dbUser.Name,
-		Email:    dbUser.Email,
-		Password: dbUser.Password,
-	}
-}
-```
-
-It will also be helpful to define a similar function that translate a `service.User` to a `database.User`
-
-With this helper function, we can now implement the GetUserByID function:
-
-```
-func (s UserService) GetUserByID(id uint64) (User, error) {
-	user, err := s.Database.GetUserByID(id)
-	if err != nil {
-		return User{}, fmt.Errorf("in UserService.GetUserByID: %w", err)
-	}
-	return userFromDBUser(user), nil
-}
-```
-
-Now, go through and implement methods for the following function signatures, similarly to how `GetUserByID` was implemented:
-
-```
-func (s UserService) GetUsers(name string) ([]User, error)
-func (s UserService) CreateUser(user *User) (User, error)
-func (s UserService) UpdateUser(id uint64, user *User) error
-func (s UserService) DeleteUser(id uint64) error
-```
-
-All of these methods should look similar to the following steps:
-
-- Leverage a method on `s.Database` to interact with the database
-- Check for errors from the call in the first step
-- Translate the data into the correct form and return
+These methods should leverage the `Where`, `First`, `Create`, `Model`, `Updates`, and `Delete` methods on the `db` object on `UsersService`. It is possible that there are other ways of implementing these methods and you should feel free to implement them as you see fit.
 
 ## Server Setup
 
