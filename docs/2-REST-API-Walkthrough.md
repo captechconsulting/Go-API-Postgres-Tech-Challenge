@@ -90,7 +90,7 @@ CLIENT_ORIGIN=http://localhost:3000
 
 ### Load and Validate Environment Variables
 
-To handle loading environment variables into the application, we will utilize the `env` package from `caarlos0` as well as the `godotenv` package.
+To handle loading environment variables into the application, we will utilize the [`env`](https://github.com/caarlos0/env) package from `caarlos0` as well as the [`godotenv`](https://github.com/joho/godotenv) package.
 
 If you have not already done so, download these packages by running the following command in your terminal:
 
