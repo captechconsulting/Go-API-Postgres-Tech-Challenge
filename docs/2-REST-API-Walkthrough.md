@@ -1,28 +1,28 @@
 # Part 2: REST API Walkthrough
 
 ## Table of Contents
+
 - [Overview](#overview)
 - [Project Structure](#project-structure)
 - [Database Setup](#database-setup)
-	- [Configure the Connection to the Database](#configure-the-connection-to-the-database)
-	- [Load and Validate the Environment Variables](#load-and-validate-the-environment-variables)
-	- [Make a Utility Function to Connect to PostgreSQL](#make-a-utility-function-to-connect-to-postgresql)
-	- [Test the Connection to the Database](#test-the-connection-to-the-database)
-	- [Setting up User Model](#setting-up-user-model)
-	- [Setting up User Utilities](#setting-up-user-utilities)
+  - [Configure the Connection to the Database](#configure-the-connection-to-the-database)
+  - [Load and Validate the Environment Variables](#load-and-validate-the-environment-variables)
+  - [Make a Utility Function to Connect to PostgreSQL](#make-a-utility-function-to-connect-to-postgresql)
+  - [Test the Connection to the Database](#test-the-connection-to-the-database)
+  - [Setting up User Model](#setting-up-user-model)
+  - [Setting up User Utilities](#setting-up-user-utilities)
 - [Service Setup](#service-setup)
-	- [Defining Models](#defining-models)
-	- [Implementing UserService Methods](#implementing-userservice-methods)
+  - [Defining Models](#defining-models)
+  - [Implementing UserService Methods](#implementing-userservice-methods)
 - [Server Setup](#server-setup)
-	- [routes.go Setup](#routesgo-setup)
-	- [user.go Setup](#usergo-setup)
-	- [Gin Engine Setup](#gin-engine-setup)
-	- [Generating Swagger Docs](#generating-swagger-docs)
-	- [main.go Setup and Running Application](#maingo-setup-and-running-application)
+  - [routes.go Setup](#routesgo-setup)
+  - [user.go Setup](#usergo-setup)
+  - [Gin Engine Setup](#gin-engine-setup)
+  - [Generating Swagger Docs](#generating-swagger-docs)
+  - [main.go Setup and Running Application](#maingo-setup-and-running-application)
 - [Unit Testing](#unit-testing)
-	- [Unit Testing Introduction](#unit-testing-introduction)
-	- [Unit Testing in This Tech Challenge](#unit-testing-in-this-tech-challenge)
-
+  - [Unit Testing Introduction](#unit-testing-introduction)
+  - [Unit Testing in This Tech Challenge](#unit-testing-in-this-tech-challenge)
 
 ## Overview
 
@@ -31,6 +31,7 @@ As previously mentioned, this challenge is centered around the use of Gin, a ver
 ## Project Structure
 
 By default, you should see the following file structure in your root directory
+
 ```
 cmd/
   http/
@@ -45,12 +46,12 @@ Makefile
 
 Before beginning to look through the project structure, ensure that you first understand the basics of Go project structuring. As a good starting place, check out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team, or check out [this Markdown file](https://gist.github.com/ayoubzulfiqar/9f1a34049332711fddd4d4b2bfd46096) with a common structure. It is important to note, that one size does not fit all Go projects. It may make more sense to vary from these common structures, depending on the work you are doing.
 
-
-The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will only need one entrypoint into the application, `api`. 
+The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will only need one entrypoint into the application, `api`.
 
 The `cmd/api` folder contains the entrypoint code specific to setting up a webserver for our application. This code should be very minimal and is primarily focused on initializing dependencies for our application then starting the application.
 
 The `internal/` folder contains internal packages that comprise the bulk of the application logic for the challenge:
+
 - `config` contains our application configuration
 - `database` contains logic for connecting to the database
 - `handlers` contains our http handlers which are the functions that execute when a request is sent to the application
@@ -71,6 +72,7 @@ We will first begin by setting up the database layer of our application.
 In order for the project to be able to connect to the PostgreSQL database, you will need to handle the configuration.
 
 First, create an `app.env` file to contain the credentials required for the Postgres image.
+
 ```
 POSTGRES_HOST=127.0.0.1
 POSTGRES_USER=user
@@ -82,74 +84,122 @@ PORT=8000
 CLIENT_ORIGIN=http://localhost:3000
 ```
 
-### Load and Validate the Environment Variables
-To handle loading the environment variables into the application, we will be utilizing the `viper` package. If you have not already done so, download the `viper` package by running the following command in your terminal.
-```
-go get github.com/spf13/viper
+### Load and Validate Environment Variables
+
+To handle loading environment variables into the application, we will be utilizing the `env` package from `caarlos0` as well as the `godotenv` package. 
+
+If you have not already done so, download these packages by running the following command in your terminal:
+
+```sh
+go get github.com/caarlos0/env/v11 github.com/joho/godotenv
 ```
 
-Now, find the `internal/config/config.go` file that will be responsible for storing the structs to contain the allowed environment variables. Add in the following struct: 
-```
+`env` is used to parse values from our system environment variables and map them to properties on a struct we've defined. `env` can also be used to perform validation on environment variables such as ensuring they are defined and don't contain an empty value.
+
+`godotenv` is used to load values from `.env` files into system environment variables. This allows us to define these values in a `.env` file for local development.
+
+Now, find the `internal/config/config.go` file. This is where we'll define the struct to contain our environment variables.
+
+```go
+// Config holds the application configuration settings. The configuration is loaded from
+// environment variables.
 type Config struct {
-	DBHost         string `mapstructure:"POSTGRES_HOST"`
-	DBUserName     string `mapstructure:"POSTGRES_USER"`
-	DBUserPassword string `mapstructure:"POSTGRES_PASSWORD"`
-	DBName         string `mapstructure:"POSTGRES_DB"`
-	DBPort         string `mapstructure:"POSTGRES_PORT"`
-	ServerPort     string `mapstructure:"PORT"`
-
-	ClientOrigin string `mapstructure:"CLIENT_ORIGIN"`
+	DBHost         string `env:"POSTGRES_HOST,required"`
+	DBUserName     string `env:"POSTGRES_USER,required"`
+	DBUserPassword string `env:"POSTGRES_PASSWORD,required"`
+	DBName         string `env:"POSTGRES_DB,required"`
+	DBPort         string `env:"POSTGRES_PORT,required"`
+	ServerPort     string `env:"PORT,required"`
+	ClientOrigin   string `env:"CLIENT_ORIGIN,required"`
 }
 ```
 
 Now, add the following function to the `internal/config/config.go` file:
-```
-func LoadConfig(path string) (*Config, error) {
-   var config Config
-   viper.AddConfigPath(path)
-   viper.SetConfigType("env")
-   viper.SetConfigName("app")
-   
-   viper.AutomaticEnv()
 
-   err := viper.ReadInConfig()
-   if err != nil {
-       return &config, err
-   }
+```go
+// New loads configuration from environment variables and a .env file, and returns a
+// Config struct or error.
+func New() (Config, error) {
+	_ = godotenv.Load()
 
-   err = viper.Unmarshal(&config)
-   return &config, err
+	cfg, err := env.ParseAs[Config]()
+	if err != nil {
+		return Config{}, fmt.Errorf("[in config.New] failed to parse config: %w", err)
+	}
+
+	return cfg, nil
 }
 ```
-In the above code, we created a function called `LoadConfig()` responsible for loading the environment variables from the `app.env` file and make them accessible in other files and packages within the application code.
 
-### Make a Utility Function to Connect to PostgreSQL
+In the above code, we created a function called `New()` that is responsible for loading the environment variables from the `.env` file, validating them, and mapping them into our `Config` struct.
 
-Next, we will write a helper function to connect to the PostgreSQL server from the application. To do that, we will be utilizing the `gorm` package and the underlying `postgres` driver from GORM. We will wrap this connection in a `Database` struct so that one connection can be passed around the program. First, download the `gorm` package: 
-```
-go get -u gorm.io/gorm  
-```
+The `New` naming convention is widely established in Go, and is used when we are returning an instance of an object from a package that shares the same name. Such as a `Config` object being returned from a `config` package.
 
-Then, in the `internal/database/database.go` file, add the function and struct below:
-```
-type Database struct {
-	DB *gorm.DB
+### Creating a `run` function to initialize dependencies
+
+Now that we can load config, let's take a step back and make an update to our `cmd/api/main.go` file. One quirk of Go is that our `func main` can't return anything. Wouldn't it be nice if we could return an error or a status code from `main` to signal that a dependency failed to initialize? We're going to steal a pattern popularized by Matt Ryer to do exactly that.
+
+First, in `cmd/api/main.go` we're going to add the function below:
+
+```go
+func run(ctx context.Context, w io.Writer) error {
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
+	// We'll initialize dependencies here as we go...
+
+	return nil
 }
+```
 
-func ConnectDb(d gorm.Dialector, c *gorm.Config) (Database, error) {
+Next, we'll update `func main` to look like this:
+
+```go
+func main() {
+	ctx := context.Background()
+	if err := run(ctx, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+Now our `main` function is only responsible for calling `run` and handling any errors that come from it. And our `run` function is responsible for initializing dependencies and starting our application. This consolidates all our error handling to a single place, and it allows us to write unit tests for the `run` function that assert proper outputs.
+
+For more information on this pattern see this excellent [blog post](https://grafana.com/blog/2024/02/09/how-i-write-http-services-in-go-after-13-years/) by Matt Ryer.
+
+### Connect to PostgreSQL
+
+Next, we'll connect our application to our PostgreSQL server. We'll leverage the `run` function we just created as the spot to initialize this connection. To initialize our connection we're going to use the `gorm` package and it's underlying `postgres` driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error handling) you may want to create a separate database package.
+
+First, download the `gorm` package:
+
+```sh
+go get -u gorm.io/gorm
+```
+
+Then, in the `cmd/api/main.go` file, update `run` to contain the snippet below:
+
+```go
+func run(ctx context.Context, w io.Writer) error {
+	// ... setting up cancellation
+
 	db, err := gorm.Open(d, c)
 	if err != nil {
-		return Database{}, fmt.Errorf("error opening database: %w", err)
+		return fmt.Errorf("[in main.run] failed to open database: %w", err)
 	}
-	return Database{DB: db}, nil
+
+	// ... future initialization 
+
+	return nil
 }
 ```
-We will use this `ConnectDb()` helper function in our `main.go` file to create a new connection with the database upon start-up.
 
+We will use this `ConnectDb()` helper function in our `main.go` file to create a new connection with the database upon start-up.
 
 ### Test the Connection to the Database
 
 You can now connect the application to the database. Add the following lines to that main function in your `cmd/api/main.go` file so it looks like below:
+
 ```
 config, err := c.LoadConfig(".")
 	if err != nil {
@@ -174,14 +224,16 @@ config, err := c.LoadConfig(".")
 	}
 	fmt.Println("Connected successfully to the database")
 ```
+
 \* Note you may need to install the `gorm.io/driver/postgres` package
 
 At this point, you can now test to see if you application is able to successfully connect to the Postgres database. To do so, open a terminal in the project root directory and run the command `go run main.go`. You should see the following output:
+
 ```
 Connected Successfully to the database
 ```
 
-Congrats! You have managed to connect to your Postgres database from your application. 
+Congrats! You have managed to connect to your Postgres database from your application.
 
 If your application is unable to connect to the database, ensure that the podman container for the database is running. Additionally, verify that the environment variables set up in previous steps are being loaded correctly.
 
@@ -189,7 +241,7 @@ If your application is unable to connect to the database, ensure that the podman
 
 Now that we have been able to successfully able to connect to the database, we will set up some basic database utilities for the users in our application.
 
-Create an `entites.go` file in the `database` package. This file will be used to hold the models for the structs that will be mapped to the objects in the database. Add the following struct: 
+Create an `entites.go` file in the `database` package. This file will be used to hold the models for the structs that will be mapped to the objects in the database. Add the following struct:
 
 ```
 type User struct {
@@ -221,6 +273,7 @@ func (database Database) GetUserByID(id uint64) (*User, error) {
 ```
 
 Let's quickly walk through the structure of this function, as it will serve as a sort of template for other similar methods:
+
 - First, a User var is created, which will hold the information of the user we search for
 - Next, the information of the user is retrieved using the `First` method on our database connection. For documentation on this and other similar methods, see the Gorm docs [here](https://gorm.io/docs/query.html). Note that we pass a pointer for the `user` var we declared so that the information can be bound to the object.
 - Next, we check if there was an error retrieving the information, and if there was, we wrap the error and return it
@@ -242,7 +295,8 @@ These methods should leverage the `Where`, `First`, `Create`, `Model`, `Updates`
 Now that the database layer of our application is set up, we will set up the web server layer
 
 ### Defining Models
-We will now set up a user service in the `service` package 
+
+We will now set up a user service in the `service` package
 
 We will first define a few structs that will be referenced later on. Begin by defining a User struct, similar to how we did in the `database` package:
 
@@ -324,6 +378,7 @@ func (s UserService) DeleteUser(id uint64) error
 ```
 
 All of these methods should look similar to the following steps:
+
 - Leverage a method on `s.Database` to interact with the database
 - Check for errors from the call in the first step
 - Translate the data into the correct form and return
@@ -332,9 +387,9 @@ All of these methods should look similar to the following steps:
 
 ### routes.go Setup
 
-Now that we have a user service that can interact with the database layer, we can set up our gin server. We will again start by defining some interfaces which will be used by our application. 
+Now that we have a user service that can interact with the database layer, we can set up our gin server. We will again start by defining some interfaces which will be used by our application.
 
-In the `routes.go` file we will first  define an `Application` interface with a single method:
+In the `routes.go` file we will first define an `Application` interface with a single method:
 
 ```
 type Application interface {
@@ -378,7 +433,6 @@ var (
 ```
 
 Next, take this function `getUserByID`:
-
 
 ```
 func getUserByID(s userService) func(c *gin.Context) {
@@ -514,7 +568,8 @@ router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 > swaggerFiles "github.com/swaggo/files"
 > ginSwagger "github.com/swaggo/gin-swagger"
 > ```
-Next, generate the swagger documentation by running the following make command:
+>
+> Next, generate the swagger documentation by running the following make command:
 
 ```
 make swag-init
@@ -523,12 +578,14 @@ make swag-init
 If successful, this should generate the swagger documentation for the project and place it in `cmd/api/docs`.
 
 > **Important:** The documentation that was just created may contain an error at the end of the file which will need to be handled before starting the application. To fix this, proceed over to the newly generated `cmd/api/docs/docs.go` file and remove the following two lines at the end of the project:
+>
 > ```
 > LeftDelim:        "{{",
 > RightDelim:       "}}",
 > ```
+>
 > This issue appears to occur every time you generate the swagger documentation, and will be something to note as you continue working through the tech challenge
-Finally, proceed over to `cmd/api/main.go` and add the following to your list of imports. Remember to replace `[name]` with your name:
+> Finally, proceed over to `cmd/api/main.go` and add the following to your list of imports. Remember to replace `[name]` with your name:
 
 ```
 _ "github.com/[name]/blog/cmd/api/docs"
