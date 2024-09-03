@@ -306,19 +306,19 @@ func (s *UsersService) ListUsers(id uint64) ([]models.User, error) {
 }
 ```
 
-Now we've stubbed out a basic `UsersService` capable of performing CRUD on our User model. Next we'll flesh out the `Read` method.
+Now we've stubbed out a basic `UsersService` capable of performing CRUD on our User model. Next we'll flesh out the `ReadUser` method.
 
-Update the `Read` method to below:
+Update the `ReadUser` method to below:
 
 ```go
-func (s *UsersService) Read(id uint64) (User, error) {
+func (s *UsersService) ReadUser(id uint64) (User, error) {
 	var user User
 
 	if err := s.db.First(&user, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return user, nil
 		}
-		return user, fmt.Errorf("[in services.UserService.Read] failed to read user: %w", err)
+		return user, fmt.Errorf("[in services.UserService.ReadUser] failed to read user: %w", err)
 	}
 
 	return user, nil
