@@ -26,7 +26,7 @@
 
 ## Overview
 
-As previously mentioned, this challenge is centered around the use of Gin, a very popular web framework for Go. Gin enables you to easily create web servers with full control of routing, validation and much more. For more information on Gin, check out [this Gin overview](https://gin-gonic.com/docs/introduction/) or the [Gin package docs](https://pkg.go.dev/github.com/gin-gonic/gin).The Gin web server will connect to a PostgreSQL database in the backend. This walkthrough will consist of a step-by-step guide for creating the REST API for the `users` table in the database. By the end of the walkthrough, you will have endpoints capable of creating, reading, updating, and deleting from the `users` table.
+As previously mentioned, this challenge is centered around the use of the `net/http` library for developing API's. Our web server will connect to a PostgreSQL database in the backend. This walkthrough will consist of a step-by-step guide for creating the REST API for the `users` table in the database. By the end of the walkthrough, you will have endpoints capable of creating, reading, updating, and deleting from the `users` table.
 
 ## Project Structure
 
@@ -34,17 +34,22 @@ By default, you should see the following file structure in your root directory
 
 ```
 cmd/
-  http/
-    routes/
+  api/
     main.go
 internal/
   config/
-  database/
-  service/
+		config.go
+	handlers/
+	routes/
+		routes.go
+  services/
+		user.go
+.gitignore
 Makefile
+README.md
 ```
 
-Before beginning to look through the project structure, ensure that you first understand the basics of Go project structuring. As a good starting place, check out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team, or check out [this Markdown file](https://gist.github.com/ayoubzulfiqar/9f1a34049332711fddd4d4b2bfd46096) with a common structure. It is important to note, that one size does not fit all Go projects. It may make more sense to vary from these common structures, depending on the work you are doing.
+Before beginning to look through the project structure, ensure that you first understand the basics of Go project structuring. As a good starting place, check out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team. It is important to note that one size does not fit all Go projects. Applications can be designed on a spectrum ranging from very lean and flat layouts, to highly structured and nested layouts. This challenge will sit in the middle, with a layout that can be applied to a broad set of Go applications.
 
 The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will only need one entrypoint into the application, `api`.
 
@@ -53,7 +58,6 @@ The `cmd/api` folder contains the entrypoint code specific to setting up a webse
 The `internal/` folder contains internal packages that comprise the bulk of the application logic for the challenge:
 
 - `config` contains our application configuration
-- `database` contains logic for connecting to the database
 - `handlers` contains our http handlers which are the functions that execute when a request is sent to the application
 - `models` contains domain models for the application
 - `routes` contains our route definitions which map a URL to a handler
@@ -69,9 +73,9 @@ We will first begin by setting up the database layer of our application.
 
 ### Configure the Connection to the Database
 
-In order for the project to be able to connect to the PostgreSQL database, you will need to handle the configuration.
+In order for the project to be able to connect to the PostgreSQL database, we first need to handle configuration.
 
-First, create an `app.env` file to contain the credentials required for the Postgres image.
+First, create a `.env` file at the root of the project to contain environment variables, including the credentials required for the Postgres image.
 
 ```
 POSTGRES_HOST=127.0.0.1
@@ -79,14 +83,13 @@ POSTGRES_USER=user
 POSTGRES_PASSWORD=goChallenge
 POSTGRES_DB=blogs
 POSTGRES_PORT=5432
-
 PORT=8000
 CLIENT_ORIGIN=http://localhost:3000
 ```
 
 ### Load and Validate Environment Variables
 
-To handle loading environment variables into the application, we will be utilizing the `env` package from `caarlos0` as well as the `godotenv` package. 
+To handle loading environment variables into the application, we will utilize the `env` package from `caarlos0` as well as the `godotenv` package. 
 
 If you have not already done so, download these packages by running the following command in your terminal:
 
@@ -99,6 +102,8 @@ go get github.com/caarlos0/env/v11 github.com/joho/godotenv
 `godotenv` is used to load values from `.env` files into system environment variables. This allows us to define these values in a `.env` file for local development.
 
 Now, find the `internal/config/config.go` file. This is where we'll define the struct to contain our environment variables.
+
+Add the struct definition below to the file:
 
 ```go
 // Config holds the application configuration settings. The configuration is loaded from
@@ -114,14 +119,20 @@ type Config struct {
 }
 ```
 
-Now, add the following function to the `internal/config/config.go` file:
+Now, add the following function to the file:
 
 ```go
 // New loads configuration from environment variables and a .env file, and returns a
 // Config struct or error.
 func New() (Config, error) {
+	// Load values from a .env file and add them to system environment variables.
+	// Discard errors coming from this function. This allows us to call this 
+	// function without a .env file which will by default load values directly
+	// from system environment variables.
 	_ = godotenv.Load()
 
+	// Once values have been loaded into system env vars, parse those into our
+	// config struct and validate them returning any errors.
 	cfg, err := env.ParseAs[Config]()
 	if err != nil {
 		return Config{}, fmt.Errorf("[in config.New] failed to parse config: %w", err)
@@ -169,7 +180,9 @@ For more information on this pattern see this excellent [blog post](https://graf
 
 ### Connect to PostgreSQL
 
-Next, we'll connect our application to our PostgreSQL server. We'll leverage the `run` function we just created as the spot to initialize this connection. To initialize our connection we're going to use the `gorm` package and it's underlying `postgres` driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error handling) you may want to create a separate database package.
+Next, we'll connect our application to our PostgreSQL server. We'll leverage the `run` function we just created as the spot to load our variables and initialize this connection.
+
+To initialize our connection we're going to use the `gorm` package and it's underlying `postgres` driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error handling) you may want to create a separate database package.
 
 First, download the `gorm` package:
 
