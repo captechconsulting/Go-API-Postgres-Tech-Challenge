@@ -513,17 +513,17 @@ Next, we will add swagger comments for our handler. In `internal/handlers/read_u
 
 The above comments give swagger important information such as the path of the endpoint, requst parameters, request bodies, and response types. For more information about each annotation and additional annotations you will need, see [Swaggo Api Operation](https://github.com/swaggo/swag?tab=readme-ov-file#api-operation).
 
-Almost there! We can now attach swagger to our project and generate the documentation based off our comments. In the `newEngine` function, add the following line right below `router := gin.Default()`:
+Almost there! We can now attach swagger to our project and generate the documentation based off our comments. In the `internal/routes/routes.go` we'll add a line to the `AddRoutes` function:
 
-```
-router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+```go
+mux.Handle("GET /swagger/*", httpSwagger.Handler(httpSwagger.URL(net.JoinHostPort(config.Host, "1323"))))
 ```
 
 > **Note:** You will also need to add the following imports at the top of the file
 >
 > ```
 > swaggerFiles "github.com/swaggo/files"
-> ginSwagger "github.com/swaggo/gin-swagger"
+> httpSwagger "github.com/swaggo/http-swagger"
 > ```
 >
 > Next, generate the swagger documentation by running the following make command:
@@ -550,50 +550,163 @@ _ "github.com/[name]/blog/cmd/api/docs"
 
 Congrats! You have now generated the swagger documentation for our application! We can now start up our application and hit our endpoints!
 
-### main.go Setup and Running Application
-
-We now have enough code to run the API end-to-end! Navigate to `main.go` In the `main` function, comment out or remove any code leftover from the initial setup. In the `main` function, we will first start by loading the config we set up earlier:
-
-```
-config, err := c.LoadConfig(".")
-	if err != nil {
-		log.Fatal("error loading configuration", err)
-	}
-```
-
-Next, create a connection to the database. Note that once they have been built out, all services in the API will use this same DB connection:
-
-```
-db, err := database.ConnectDb(
-	postgres.Open(
-		fmt.Sprintf(
-			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
-			config.DBHost,
-			config.DBUserName,
-			config.DBUserPassword,
-			config.DBName,
-			config.DBPort,
-		),
-	),
-	&gorm.Config{},
-)
-if err != nil {
-	log.Fatal("error connecting to database", err)
-}
-fmt.Println("Connected successfully to the database")
-```
-
-Finally, we will set up the `UserService`, `BlogApplication`, and run the app:
-
-```
-us := service.NewUserService(db)
-
-app := routes.NewBlogApplication(us)
-
-log.Fatal(app.Run())
-```
+We now have enough code to run the API end-to-end!
 
 At this point, you should be able to run your appliacation. You can do this using the make command `make start-web-app` or using basic go build and run commands. If you encounter issues, ensure that your database container is running in podman, and that there are no syntax errors present in the code.
+
+Run the application and navigate to the swagger endpoint to see your collection of routes. Try ineracting with the read user route to verify it returns a response with our path parameter. Next, we'll finish fleshing out that handler and create the rest of our handlers and routes.
+
+## Injecting the user service into the read user handler
+
+Now that we've verified our handler is properly handling http requests we'll implement some actual read user logic. To do this, we need to make our user service accessible to the handler. We already defined our handler as a closure, giving us a place to inject dependencies.
+
+Instead of injecting the service directly we're going to leverage a features of Go and define and inject a small interface.
+
+In Go, interfaces are implemented implicitly. Which makes them a fantastic tool to abstract away the details of a service at the point its used. Let's define the interface to see what we mean.
+
+In `internal/handlers/read_user.go` add the following interface definition to the top of the file:
+
+```go
+// userReader represents a type capable of reading a user from storage and
+// returning it or an error.
+type userReader interface {
+	ReadUser(id uint64) (models.User, error)
+}
+```
+
+The Go community encourages this style of interface declaration. The interface is defined at the point it's consumed, which allows us to narrow down the methods to only the single `ReadUser` method we need. This greatly simplifies testing by simplifying the mock we need to create. This also gives us additional type safety in that we've guaranteed that the handler for reading a user doesn't have access to other functionality like deleting a user.
+
+Now that we've defined our interface we can inject it. Add an argument for the interface to the `HandleReadUser` function:
+
+```go
+func HandleReadUser(logger *slog.Logger, userReader userReader) http.Handler {
+	// ... handler functionality
+}
+```
+
+And update our handler invocation in the `internal/routes/routes.go` `AddRoutes` function:
+
+```go
+mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger, userService))
+```
+
+Notice that our user service can be supplied to `HandleReadUser` as it satisfies the `userReader` interface. This style of accepting interfaces at implementation, and returning structs from declaration is extremely popular in Go.
+
+## Hiding the read user response type
+
+A general best practice with developing API's is to define request and response models separate from our domain models. This means a little bit of extra mapping, but keeps our domain model from leaking out of our API. This also gives us some flexibility in the event a request or response doesn't cleanly map to a domain model.
+
+Update `internal/handlers/read_user.go` to have the following type defintion:
+
+```go
+// readUserResponse represents the response for reading a user.
+type readUserResponse struct {
+	ID       uint 	`json:"id"`
+	Name     string	`json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+```
+
+## Reading the user and mapping it to a response
+
+With our response type defined and our user service injected it's time to read our user model and map it into a response. Update the `http.HandlerFunc` returned from `HandleReadUser` to the following:
+
+```go
+return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Read id from path parameters
+	idStr := r.PathValue("id")
+
+	// Convert the ID from string to int
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to parse id from url",
+			slog.String("id", idStr),
+			slog.String("error", err.Error()))
+
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	// Read the user
+	user, err := userReader.ReadUser(id)
+	if err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to read user",
+			slog.String("error", err.Error()))
+
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert our models.User domain model into a response model.
+	response := readUserResponse{
+		ID: user.ID,
+		Name: user.Name,
+		Email: user.Email,
+		Password: user.Password,
+	}
+
+	// Encode the response model as JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to encode response",
+			slog.String("error", err.Error()))
+
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+})
+```
+
+At this point we can restart the server process and hit our read user endpoint again from swagger.
+
+## Flesh out user CRUD routes / handlers
+
+Now that we've fully fleshed out the read user endpoint we can create routes and handlers for each of our other user CRUD operations.
+
+| Operation   | Method   | Path              | Handler File     | Handler            |
+| ----------- | -------- | ----------------- | ---------------- | ------------------ |
+| Create User | `POST`   | `/api/users`      | `create_user.go` | `HandleCreateUser` |
+| Update User | `PUT`    | `/api/users/{id}` | `update_user.go` | `HandleUpdateUser` |
+| Delete User | `DELETE` | `/api/users/{id}` | `delete_user.go` | `HandleDeleteUser` |
+| List Users  | `GET`    | `/api/users`      | `list_users.go`  | `HandleListUsers`  |
+
+## Input model validation
+
+One thing we still need is validation for incoming requests. We can create another single method interface to help with this. Create a new `handlers.go` file in the `internal/handlers` package. This will serve as a spot for shared handler types and logic.
+
+Add the following interface and function to the file:
+
+```go
+// validator is an object that can be validated.
+type validator interface {
+	// Valid checks the object and returns any
+	// problems. If len(problems) == 0 then
+	// the object is valid.
+	Valid(ctx context.Context) (problems map[string]string)
+}
+
+// decodeValid decodes a model from an http request and performs validation
+// on it.
+func decodeValid[T validator](r *http.Request) (T, map[string]string, error) {
+	var v T
+	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+		return v, nil, fmt.Errorf("decode json: %w", err)
+	}
+	if problems := v.Valid(r.Context()); len(problems) > 0 {
+		return v, problems, fmt.Errorf("invalid %T: %d problems", v, len(problems))
+	}
+	return v, nil, nil
+}
+```
+
+While writing handlers for requests that have input models we can use the code above to decode models from the request body. Notice that `decodeValid` takes a generic that must implement the `validator` interface. To call the function ensure the model you're attempting to decode implements `validator`.
 
 ## Unit Testing
 
