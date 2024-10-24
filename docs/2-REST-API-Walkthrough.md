@@ -50,6 +50,8 @@ By default, you should see the following file structure in your root directory
 │   │   └── routes.go
 │   ├── server
 │   │   └── server.go
+│   ├── models
+│   │   └── models.go
 │   └── services/
 │       └── user.go
 ├── .gitignore
