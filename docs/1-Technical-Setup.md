@@ -71,6 +71,9 @@ colima --version
 
 # install docker with homebrew
 brew install docker
+
+# install docker-compose with homebrew
+brew install docker-compose
 ```
 
 Once installed, you can start and stop colima using the following command:
@@ -83,12 +86,33 @@ colima start
 colima stop
 ```
 
+> ---
+>
+>  If you run into an error such as:
+>
+>
+> `Cannot connect to the Docker daemon at unix:///var/run/docker.sock. 
+> Is the docker daemon running?`
+>
+> please reference this
+> [help article](https://github.com/abiosoft/colima/blob/main/docs/FAQ.md#cannot-connect-to-the-docker-daemon-at-unixvarrundockersock-is-the-docker-daemon-running).
+>
+> ---
+
+> ---
+>
 > If you run into an error such as:
 >
->`Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?`
+> `docker: 'compose' is not a docker command.`
 >
->please reference
-> this [help article](https://github.com/abiosoft/colima/blob/main/docs/FAQ.md#cannot-connect-to-the-docker-daemon-at-unixvarrundockersock-is-the-docker-daemon-running).
+> add the following JSON to your `~/.docker/config.json file.`
+> ```json
+> "cliPluginsExtraDirs": [
+>     "/opt/homebrew/lib/docker/cli-plugins"
+> ]
+> ```
+>
+> ---
 
 ### DBeaver
 
@@ -137,46 +161,30 @@ Once your repository is cloned locally, you are all set to move on to the next s
 
 ## Database Setup
 
-In order to initialize the database, the following setup will be required.
+To reduce developer friction, we have provided a docker-compose file that will create a PostgreSQL
+databse instance for you. To start this container, we first need to create a `.env` file. To do
+this, running the following command to make a copy of the `.env.local` file:
 
-- First, ensure that you have installed and configured Podman Desktop correctly. Then, open a
-  terminal and run the following commands to start a podman instance:
-
-```
-podman machine init
-podman machine start
-```
-
-- Next, pull the PostgreSQL image by running the following command:
-
-```
-podman pull docker.io/library/postgres:latest
+```bash
+# copy the .env.local file to .env
+cp .env.local .env
 ```
 
-- You are then able to create a Podman container to store the database in. Run the following command
-  in your terminal:
+Next you can modify the username and password in the `.env` file if you would like to change it from
+the default. We have already added the `.env` file to the `.gitignore` file so that it will not be
+pushed to the repository.
 
+To start the database, run the following command:
+
+```bash
+# start the database
+docker command up
 ```
-podman run -d --name PostgresServer -e POSTGRES_USER=user -e POSTGRES_PASSWORD=goChallenge -e POSTGRES_DB=blogs -p 5432:5432 docker.io/library/postgres:latest
-```
 
-At this point, you will notice in Podman Desktop that a container has been created and running on
-port 5432.
-
-In order to initialize the database and provide default data, you will need to complete the
-following steps. Make sure that your podman container is up and running prior to completing these
-steps.
+Now that the database is running, we can connect to it using DBeaver.
 
 - First, open DBeaver and add a new connection, specifying PostgreSQL as the database type. Next,
-  make sure that the host, port, database, and credentials match as below
-
-```
-Host: localhost
-Port: 5432
-Database: blogs
-Username: user
-Password: goChallenge
-```
+  make sure that the host, port, database, and credentials match the values in the `.env` file.
 
 > ---
 >
@@ -185,16 +193,16 @@ Password: goChallenge
 >
 > ---
 
-- Once you have connected to the database, open a new sql script. Then, copy and paste the SQL
-  commands into the sql script from the `database_postgres_setup.sql` file under the `/database`
-  directory. At this point, you have now initialized your database and are ready to continue.
+- Once you have connected to the database, confirm you can see the `comments` database and the
+  tables
+  `blogs` and `users`.
 
 ## Create Go Module and Install Necessary Libraries
 
 To create your go project, open a terminal in the root project directory and run the following
 command, replacing `[name]` with your name.
 
-```
+```bash
 go mod init github.com/[name]/blog
 ```
 
@@ -202,8 +210,8 @@ Next, run the following commands that will install the required libraries for th
 
 ```bash
 go get github.com/caarlos0/env/v11
+go get github.com/jackc/pgx/v5/stdlib
 go get github.com/swaggo/http-swagger
-go get github
 go install github.com/swaggo/swag/cmd/swag@latest
 ```
 

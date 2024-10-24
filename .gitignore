@@ -19,3 +19,5 @@ employees.db
 # vendor/
 .DS_Store
 app.env
+
+**/.env

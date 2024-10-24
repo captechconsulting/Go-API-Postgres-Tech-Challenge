@@ -11,7 +11,7 @@ CREATE TABLE "users" (
 );
 
 -- Create blog table
-CREATE TABLE blogs (
+CREATE TABLE "blogs" (
     id BIGSERIAL PRIMARY KEY,
     author_id INTEGER NOT NULL,
     title TEXT NOT NULL,
