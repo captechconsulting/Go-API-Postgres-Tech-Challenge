@@ -210,6 +210,7 @@ Next, run the following commands that will install the required libraries for th
 
 ```bash
 go get github.com/caarlos0/env/v11
+go get github.com/joho/godotenv
 go get github.com/jackc/pgx/v5/stdlib
 go get github.com/swaggo/http-swagger
 go install github.com/swaggo/swag/cmd/swag@latest
