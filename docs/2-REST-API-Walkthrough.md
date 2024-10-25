@@ -338,10 +338,8 @@ there are many ways to structure Go applications. We're following a very basic l
 that places most of our logic and dependencies in a services package. This allows our handlers to
 focus on request and response logic, and gives us a single point to find application logic.
 
-Start by creating a new `users.go` file in the `internal/services` package. This file will hold the
-definitions for our user service.
-
-Next, add the following struct, constructor function, and methods to the `users.go` file:
+Start by adding the following struct, constructor function, and methods to the `internal/services/users.go` file. This file will hold the
+definitions for our user service:
 
 ```go
 // UsersService is a service capable of performing CRUD operations for
