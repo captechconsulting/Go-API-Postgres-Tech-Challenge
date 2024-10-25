@@ -21,3 +21,4 @@ employees.db
 app.env
 
 **/.env
+.idea

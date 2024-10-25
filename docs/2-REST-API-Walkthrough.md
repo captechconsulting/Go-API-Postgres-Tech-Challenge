@@ -103,12 +103,9 @@ configuration.
 First, create a `.env` file at the root of the project to contain environment variables, including
 the credentials required for the Postgres image.
 
+First, update the `.env` file with the following environment variables:
+
 ```
-POSTGRES_HOST=127.0.0.1
-POSTGRES_USER=user
-POSTGRES_PASSWORD=goChallenge
-POSTGRES_DB=blogs
-POSTGRES_PORT=5432
 CLIENT_ORIGIN=http://localhost:3000
 HOST=127.0.0.1
 PORT=8000
@@ -140,18 +137,20 @@ environment variables.
 Add the struct definition below to the file:
 
 ```go
+package config
+
 // Config holds the application configuration settings. The configuration is loaded from
 // environment variables.
 type Config struct {
-DBHost         string `env:"POSTGRES_HOST,required"`
-DBUserName     string `env:"POSTGRES_USER,required"`
-DBUserPassword string `env:"POSTGRES_PASSWORD,required"`
-DBName         string `env:"POSTGRES_DB,required"`
-DBPort         string `env:"POSTGRES_PORT,required"`
-ServerPort     string `env:"PORT,required"`
-ClientOrigin   string `env:"CLIENT_ORIGIN,required"`
-Host                     string `env:"HOST,required"`
-Port                     string `env:"PORT,required"`
+    DBHost         string `env:"DATABASE_HOST,required"`
+    DBUserName     string `env:"DATABASE_USER,required"`
+    DBUserPassword string `env:"DATABASE_PASSWORD,required"`
+    DBName         string `env:"DATABASE_NAME,required"`
+    DBPort         string `env:"DATABASE_PORT,required"`
+    ServerPort     string `env:"PORT,required"`
+    ClientOrigin   string `env:"CLIENT_ORIGIN,required"`
+    Host           string `env:"HOST,required"`
+    Port           string `env:"PORT,required"`
 }
 ```
 
@@ -161,20 +160,20 @@ Now, add the following function to the file:
 // New loads configuration from environment variables and a .env file, and returns a
 // Config struct or error.
 func New() (Config, error) {
-// Load values from a .env file and add them to system environment variables.
-// Discard errors coming from this function. This allows us to call this
-// function without a .env file which will by default load values directly
-// from system environment variables.
-_ = godotenv.Load()
+    // Load values from a .env file and add them to system environment variables.
+    // Discard errors coming from this function. This allows us to call this
+    // function without a .env file which will by default load values directly
+    // from system environment variables.
+    _ = godotenv.Load()
 
-// Once values have been loaded into system env vars, parse those into our
-// config struct and validate them returning any errors.
-cfg, err := env.ParseAs[Config]()
-if err != nil {
-return Config{}, fmt.Errorf("[in config.New] failed to parse config: %w", err)
-}
+    // Once values have been loaded into system env vars, parse those into our
+    // config struct and validate them returning any errors.
+    cfg, err := env.ParseAs[Config]()
+    if err != nil {
+        return Config{}, fmt.Errorf("[in config.New] failed to parse config: %w", err)
+    }
 
-return cfg, nil
+    return cfg, nil
 }
 ```
 
@@ -197,11 +196,11 @@ First, in `cmd/api/main.go` we're going to add the function below:
 
 ```go
 func run(ctx context.Context, w io.Writer) error {
-ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
-defer cancel()
-// We'll initialize dependencies here as we go...
+    ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+    defer cancel()
+    // We'll initialize dependencies here as we go...
 
-return nil
+    return nil
 }
 ```
 
@@ -209,11 +208,11 @@ Next, we'll update `func main` to look like this:
 
 ```go
 func main() {
-ctx := context.Background()
-if err := run(ctx, os.Stdout); err != nil {
-fmt.Fprintf(os.Stderr, "%s\n", err)
-os.Exit(1)
-}
+    ctx := context.Background()
+    if err := run(ctx, os.Stdout); err != nil {
+        fmt.Fprintf(os.Stderr, "%s\n", err)
+        os.Exit(1)
+    }
 }
 ```
 
@@ -249,7 +248,7 @@ Then, in the `cmd/api/main.go` file, update `run` to contain the snippet below:
 // Load and validate environment config
 cfg, err := config.New()
 if err != nil {
-return fmt.Errorf("[in main.run] failed to load config: %w", err)
+    return fmt.Errorf("[in main.run] failed to load config: %w", err)
 }
 
 // Create a structured logger, which will print logs in json format to the
@@ -257,21 +256,17 @@ return fmt.Errorf("[in main.run] failed to load config: %w", err)
 logger := slog.New(slog.NewJSONHandler(w, nil))
 
 // Create a new DB connection using environment config
-db, err := gorm.Open(
-postgres.Open(
-fmt.Sprintf(
-"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-config.DBHost,
-config.DBUserName,
-config.DBUserPassword,
-config.DBName,
-config.DBPort,
-)
-),
-&gorm.Config{})
+db, err := gorm.Open(postgres.Open(fmt.Sprintf(
+    "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+    config.DBHost,
+    config.DBUserName,
+    config.DBUserPassword,
+    config.DBName,
+    config.DBPort,
+)) &gorm.Config{})
 
 if err != nil {
-return fmt.Errorf("[in main.run] failed to open database: %w", err)
+    return fmt.Errorf("[in main.run] failed to open database: %w", err)
 }
 
 logger.Info("Connected successfully to the database")
@@ -299,10 +294,10 @@ Create a `user.go` file in the `internal/models` package. Add the following stru
 
 ```go
 type User struct {
-ID       uint
-Name     string
-Email    string
-Password string
+    ID       uint
+    Name     string
+    Email    string
+    Password string
 }
 ```
 
@@ -323,47 +318,47 @@ Next, add the following struct, constructor function, and methods to the `users.
 // UsersService is a service capable of performing CRUD operations for
 // models.User models.
 type UsersService struct {
-logger *slog.Logger
-db         *gorm.DB
+    logger *slog.Logger
+    db     *gorm.DB
 }
 
 // NewUsersService creates a new UsersService and returns a pointer to it.
 func NewUsersService(logger *slog.Logger, db *gorm.DB) *UsersService {
-return &UsersService{
-logger: logger,
-db: db,
-}
+    return &UsersService{
+        logger: logger,
+        db:     db,
+    }
 }
 
 // CreateUser attempts to create the provided user, returning a fully hydrated
 // models.User or an error.
 func (s *UsersService) CreateUser(user models.User) (models.User, error) {
-return models.User{}, nil
+    return models.User{}, nil
 }
 
 // ReadUser attempts to read a user from the database using the provided id. A
 // fully hydrated models.User or error is returned.
 func (s *UsersService) ReadUser(id uint64) (models.User, error) {
-return models.User{}, nil
+    return models.User{}, nil
 }
 
 // UpdateUser attempts to perform an update of the user with the provided id,
 // updating, it to reflect the properties on the provided patch object. A
 // models.User or an error.
 func (s *UsersService) UpdateUser(id uint64, patch models.User) (models.User, error) {
-return models.User{}, nil
+    return models.User{}, nil
 }
 
 // CreateUser attempts to create the provided user, returning a fully hydrated
 // models.User or an error.
 func (s *UsersService) DeleteUser(id uint64) error {
-return nil
+    return nil
 }
 
 // CreateUser attempts to create the provided user, returning a fully hydrated
 // models.User or an error.
 func (s *UsersService) ListUsers(id uint64) ([]models.User, error) {
-return []models.User{}, nil
+    return []models.User{}, nil
 }
 ```
 
@@ -374,16 +369,16 @@ Update the `ReadUser` method to below:
 
 ```go
 func (s *UsersService) ReadUser(id uint64) (models.User, error) {
-var user models.User
+    var user models.User
 
-if err := s.db.First(&user, id).Error; err != nil {
-if errors.Is(err, gorm.ErrRecordNotFound) {
-return user, nil
-}
-return user, fmt.Errorf("[in services.UserService.ReadUser] failed to read user: %w", err)
-}
+    if err := s.db.First(&user, id).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return user, nil
+        }
+        return user, fmt.Errorf("[in services.UserService.ReadUser] failed to read user: %w", err)
+    }
 
-return user, nil
+    return user, nil
 }
 ```
 
@@ -429,24 +424,24 @@ from below:
 
 ```go
 func HandleReadUser(logger *slog.Logger) http.Handler {
-return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
-// Set the status code to 200 OK
-w.WriteHeader(http.StatusOK)
+    return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+        // Set the status code to 200 OK
+        w.WriteHeader(http.StatusOK)
 
-id := r.PathValue("id")
-if id == "" {
-http.Error(w, "not found", http.StatusNotFound)
-return
-}
+        id := r.PathValue("id")
+        if id == "" {
+            http.Error(w, "not found", http.StatusNotFound)
+            return
+        }
 
-// Write the response body, simply echo the ID back out
-_, err := w.Write([]byte(id))
-if err != nil {
-// Handle error if response writing fails
-logger.ErrorContext(r.Context(), "failed to write response", slog.String("error", err.Error()))
-http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-}
-})
+        // Write the response body, simply echo the ID back out
+        _, err := w.Write([]byte(id))
+        if err != nil {
+            // Handle error if response writing fails
+            logger.ErrorContext(r.Context(), "failed to write response", slog.String("error", err.Error()))
+            http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        }
+    })
 }
 ```
 
@@ -462,13 +457,9 @@ all our routes and their handlers at a glance
 In the `internal/routes/routes.go` file we'll define the function below:
 
 ```go
-func AddRoutes(
-mux                *http.ServeMux,
-logger            *slog.Logger,
-config            config.Config,
-userService *services.UserService) {
-// Read a user
-mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger))
+func AddRoutes(mux *http.ServeMux, logger *slog.Logger, config config.Config, userService *services.UserService) {
+    // Read a user
+    mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger))
 }
 ```
 
@@ -480,26 +471,23 @@ serve them.
 In the `internal/server/server.go` file we'll define the function below:
 
 ```go
-func NewServer(
-logger *slog.Logger,
-config config.Config
-userService *services.UserService) http.Handler {
-// Create a serve mux to act as our route multiplexer
-mux := http.NewServeMux()
-// Add our routes to the mux
-routes.AddRoutes(
-mux,
-logger,
-config,
-userService,
-)
+func NewServer(logger *slog.Logger, config config.Config userService *services.UserService) http.Handler {
+    // Create a serve mux to act as our route multiplexer
+    mux := http.NewServeMux()
+    // Add our routes to the mux
+    routes.AddRoutes(
+        mux,
+        logger,
+        config,
+        userService,
+    )
 
-// Optionally configure middleware on the mux
-var handler http.Handler = mux
-// handler = someMiddleware(handler)
-// handler = someMiddleware2(handler)
-// handler = someMiddleware3(handler)
-return handler
+    // Optionally configure middleware on the mux
+    var handler http.Handler = mux
+    // handler = someMiddleware(handler)
+    // handler = someMiddleware2(handler)
+    // handler = someMiddleware3(handler)
+    return handler
 }
 ```
 
@@ -514,27 +502,27 @@ initalized:
 userService := services.NewUserService()
 svr := server.NewServer(logger, cfg, userService)
 httpServer := &http.Server{
-Addr:     net.JoinHostPort(cfg.Host, cfg.Port)
-Handler: svr
+    Addr:    net.JoinHostPort(cfg.Host, cfg.Port)
+    Handler: svr
 }
 
 go func () {
-logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr)
-if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
-}
+    logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr)
+    if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+        fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
+    }
 }()
 var wg sync.WaitGroup
 wg.Add(1)
 go func () {
-defer wg.Done()
-<-ctx.Done()
-shutdownCtx := context.Background()
-shutdownCtx, cancel := context.WithTimeout(shutdownCtx, 10 * time.Second)
-defer cancel()
-if err := httpServer.Shutdown(shutdownCtx); err != nil {
-fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
-}
+    defer wg.Done()
+    <-ctx.Done()
+    shutdownCtx := context.Background()
+    shutdownCtx, cancel := context.WithTimeout(shutdownCtx, 10 * time.Second)
+    defer cancel()
+    if err := httpServer.Shutdown(shutdownCtx); err != nil {
+        fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
+    }
 }()
 wg.Wait()
 return nil
@@ -562,19 +550,19 @@ Next, we will need to provide swagger basic information to help generate our swa
 In `internal/routes/routes.go` add the following comments above the `AddRoutes` function:
 
 ```
-// @title											Blog Service API
-// @version										1.0
-// @description								Practice Go Gin API using GORM and Postgres
-// @termsOfService						http://swagger.io/terms/
-// @contact.name							API Support
-// @contact.url								http://www.swagger.io/support
-// @contact.email							support@swagger.io
-// @license.name							Apache 2.0
-// @license.url								http://www.apache.org/licenses/LICENSE-2.0.html
-// @host											localhost:8080
-// @BasePath									/api
-// @externalDocs.description	OpenAPI
-// @externalDocs.url					https://swagger.io/resources/open-api/
+// @title						Blog Service API
+// @version						1.0
+// @description					Practice Go Gin API using GORM and Postgres
+// @termsOfService				http://swagger.io/terms/
+// @contact.name				API Support
+// @contact.url					http://www.swagger.io/support
+// @contact.email				support@swagger.io
+// @license.name				Apache 2.0
+// @license.url					http://www.apache.org/licenses/LICENSE-2.0.html
+// @host						localhost:8080
+// @BasePath					/api
+// @externalDocs.description    OpenAPI
+// @externalDocs.url			https://swagger.io/resources/open-api/
 ```
 
 For more detailed description on what each annotation does, please
@@ -584,17 +572,17 @@ Next, we will add swagger comments for our handler. In `internal/handlers/read_u
 following comments above the `HandleReadUser` function:
 
 ```
-// @Summary			Read User
+// @Summary		Read User
 // @Description	Read User by ID
-// @Tags				user
-// @Accept			json
-// @Produce			json
-// @Param				id	path	string	true	"User ID"
-// @Success			200	{object}	handlers.
-// @Failure			400	{object}	string
-// @Failure			404	{object}	string
-// @Failure			500	{object}	string
-// @Router			/user/{id} [GET]
+// @Tags		user
+// @Accept		json
+// @Produce		json
+// @Param		id          path	    string	    true	"User ID"
+// @Success		200	        {object}	handlers.
+// @Failure		400	        {object}	string
+// @Failure		404	        {object}	string
+// @Failure		500	        {object}	string
+// @Router		/user/{id}  [GET]
 ```
 
 The above comments give swagger important information such as the path of the endpoint, requst
@@ -676,7 +664,7 @@ In `internal/handlers/read_user.go` add the following interface definition to th
 // userReader represents a type capable of reading a user from storage and
 // returning it or an error.
 type userReader interface {
-ReadUser(id uint64) (models.User, error)
+    ReadUser(id uint64) (models.User, error)
 }
 ```
 
@@ -691,7 +679,7 @@ Now that we've defined our interface we can inject it. Add an argument for the i
 
 ```go
 func HandleReadUser(logger *slog.Logger, userReader userReader) http.Handler {
-// ... handler functionality
+    // ... handler functionality
 }
 ```
 
@@ -717,10 +705,10 @@ Update `internal/handlers/read_user.go` to have the following type defintion:
 ```go
 // readUserResponse represents the response for reading a user.
 type readUserResponse struct {
-ID       uint    `json:"id"`
-Name     string    `json:"name"`
-Email    string `json:"email"`
-Password string `json:"password"`
+    ID       uint   `json:"id"`
+    Name     string `json:"name"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
 }
 ```
 
@@ -732,53 +720,53 @@ following:
 
 ```go
 return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
-// Read id from path parameters
-idStr := r.PathValue("id")
+	// Read id from path parameters
+	idStr := r.PathValue("id")
 
-// Convert the ID from string to int
-id, err := strconv.Atoi(idStr)
-if err != nil {
-logger.ErrorContext(
-r.Context(),
-"failed to parse id from url",
-slog.String("id", idStr),
-slog.String("error", err.Error()))
+	// Convert the ID from string to int
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to parse id from url",
+			slog.String("id", idStr),
+			slog.String("error", err.Error()))
 
-http.Error(w, "Invalid ID", http.StatusBadRequest)
-return
-}
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
 
-// Read the user
-user, err := userReader.ReadUser(id)
-if err != nil {
-logger.ErrorContext(
-r.Context(),
-"failed to read user",
-slog.String("error", err.Error()))
+	// Read the user
+	user, err := userReader.ReadUser(id)
+	if err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to read user",
+			slog.String("error", err.Error()))
 
-http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-return
-}
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
-// Convert our models.User domain model into a response model.
-response := readUserResponse{
-ID: user.ID,
-Name: user.Name,
-Email: user.Email,
-Password: user.Password,
-}
+	// Convert our models.User domain model into a response model.
+	response := readUserResponse{
+		ID:       user.ID,
+		Name:     user.Name,
+		Email:    user.Email,
+		Password: user.Password,
+	}
 
-// Encode the response model as JSON
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-if err := json.NewEncoder(w).Encode(response); err != nil {
-logger.ErrorContext(
-r.Context(),
-"failed to encode response",
-slog.String("error", err.Error()))
+	// Encode the response model as JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to encode response",
+			slog.String("error", err.Error()))
 
-http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-}
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 })
 ```
 
@@ -807,23 +795,23 @@ Add the following interface and function to the file:
 ```go
 // validator is an object that can be validated.
 type validator interface {
-// Valid checks the object and returns any
-// problems. If len(problems) == 0 then
-// the object is valid.
-Valid(ctx context.Context) (problems map[string]string)
+    // Valid checks the object and returns any
+    // problems. If len(problems) == 0 then
+    // the object is valid.
+    Valid(ctx context.Context) (problems map[string]string)
 }
 
 // decodeValid decodes a model from an http request and performs validation
 // on it.
 func decodeValid[T validator](r *http.Request) (T, map[string]string, error) {
-var v T
-if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
-return v, nil, fmt.Errorf("decode json: %w", err)
-}
-if problems := v.Valid(r.Context()); len(problems) > 0 {
-return v, problems, fmt.Errorf("invalid %T: %d problems", v, len(problems))
-}
-return v, nil, nil
+    var v T
+    if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+        return v, nil, fmt.Errorf("decode json: %w", err)
+    }
+    if problems := v.Valid(r.Context()); len(problems) > 0 {
+        return v, problems, fmt.Errorf("invalid %T: %d problems", v, len(problems))
+    }
+    return v, nil, nil
 }
 ```
 
