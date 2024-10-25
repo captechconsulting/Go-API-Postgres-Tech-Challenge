@@ -13,7 +13,7 @@
     - [Setting up User Utilities](#setting-up-user-utilities)
 - [Service Setup](#service-setup)
     - [Defining Models](#defining-models)
-    - [Implementing UserService Methods](#implementing-userservice-methods)
+    - [Implementing UsersService Methods](#implementing-userservice-methods)
 - [Server Setup](#server-setup)
     - [routes.go Setup](#routesgo-setup)
     - [user.go Setup](#usergo-setup)
@@ -402,7 +402,7 @@ func (s *UsersService) ReadUser(id uint64) (models.User, error) {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             return user, nil
         }
-        return user, fmt.Errorf("[in services.UserService.ReadUser] failed to read user: %w", err)
+        return user, fmt.Errorf("[in services.UsersService.ReadUser] failed to read user: %w", err)
     }
 
     return user, nil
@@ -484,7 +484,7 @@ all our routes and their handlers at a glance
 In the `internal/routes/routes.go` file we'll define the function below:
 
 ```go
-func AddRoutes(mux *http.ServeMux, logger *slog.Logger, config config.Config, userService *services.UserService) {
+func AddRoutes(mux *http.ServeMux, logger *slog.Logger, config config.Config, usersService *services.UsersService) {
     // Read a user
     mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger))
 }
@@ -498,7 +498,7 @@ serve them.
 In the `internal/server/server.go` file we'll define the function below:
 
 ```go
-func NewServer(logger *slog.Logger, config config.Config userService *services.UserService) http.Handler {
+func NewServer(logger *slog.Logger, config config.Config, usersService *services.UsersService) http.Handler {
     // Create a serve mux to act as our route multiplexer
     mux := http.NewServeMux()
     // Add our routes to the mux
@@ -506,7 +506,7 @@ func NewServer(logger *slog.Logger, config config.Config userService *services.U
         mux,
         logger,
         config,
-        userService,
+        usersService,
     )
 
     // Optionally configure middleware on the mux
@@ -526,8 +526,8 @@ Modify the `run` function in `main.go` to include the following below the depend
 initalized:
 
 ```go
-userService := services.NewUserService()
-svr := server.NewServer(logger, cfg, userService)
+usersService := services.NewUsersService()
+svr := server.NewServer(logger, cfg, usersService)
 httpServer := &http.Server{
     Addr:    net.JoinHostPort(cfg.Host, cfg.Port)
     Handler: svr
@@ -555,7 +555,7 @@ wg.Wait()
 return nil
 ```
 
-This code initializes our `services.UserService` and an instance of our server with routes and
+This code initializes our `services.UsersService` and an instance of our server with routes and
 middlware. This instance will act as the root handler for our `http.Server`. Finally we create a
 pointer for an `http.Server`, attach our root handler to it, and start the server in a goroutine.
 
@@ -713,7 +713,7 @@ func HandleReadUser(logger *slog.Logger, userReader userReader) http.Handler {
 And update our handler invocation in the `internal/routes/routes.go` `AddRoutes` function:
 
 ```go
-mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger, userService))
+mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger, usersService))
 ```
 
 Notice that our user service can be supplied to `HandleReadUser` as it satisfies the `userReader`
