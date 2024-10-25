@@ -298,8 +298,11 @@ logger.Info("Connected successfully to the database")
 ```
 
 At this point, you can now test to see if you application is able to successfully connect to the
-Postgres database. To do so, open a terminal in the project root directory and run the command
-`go run main.go`. You should see logs indicating you connected to the database.
+Postgres database. To do so, open a terminal in the project root directory and run the bellow command. You should see logs indicating you connected to the database.
+
+```bash
+go run cmd/api/main.go
+```
 
 Congrats! You have managed to connect to your Postgres database from your application.
 
