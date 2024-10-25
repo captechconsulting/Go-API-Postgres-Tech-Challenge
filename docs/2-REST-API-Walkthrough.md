@@ -610,12 +610,12 @@ following comments above the `HandleReadUser` function:
 // @Tags		user
 // @Accept		json
 // @Produce		json
-// @Param		id          path	    string	    true	"User ID"
-// @Success		200	        {object}	handlers.
-// @Failure		400	        {object}	string
-// @Failure		404	        {object}	string
-// @Failure		500	        {object}	string
-// @Router		/user/{id}  [GET]
+// @Param		id           path	    string	    true	"User ID"
+// @Success		200	         {object}	uint
+// @Failure		400	         {object}	string
+// @Failure		404	         {object}	string
+// @Failure		500	         {object}	string
+// @Router		/users/{id}  [GET]
 ```
 
 The above comments give swagger important information such as the path of the endpoint, requst
