@@ -240,7 +240,38 @@ First, download the `gorm` package:
 go get -u gorm.io/gorm gorm.io/driver/postgres
 ```
 
-Then, in the `cmd/api/main.go` file, update `run` to contain the snippet below:
+Then, in `internal/database/database.go`, lets add a new function called `Connect`. This function will be responsible for connection to our database. Add the following code:
+
+```go
+
+func Connect(ctx context.Context, logger *slog.Logger, cfg Config) (*gorm.DB, error) {
+    // Create a new DB connection using environment config
+    logger.DebugContext(ctx, "Connecting to database")
+    db, err := gorm.Open(
+        postgres.Open(
+            fmt.Sprintf(
+                "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+                cfg.DBHost,
+                cfg.DBUserName,
+                cfg.DBUserPassword,
+                cfg.DBName,
+                cfg.DBPort,
+            ),
+        ),
+        &gorm.Config{},
+    )
+    if err != nil {
+        return fmt.Errorf("[in database.Connect] failed to open database: %w", err)
+    }
+
+    logger.DebugContext(ctx, "Successfully connected to database")
+
+    return db, nil
+}
+
+```
+
+Now, back in the `cmd/api/main.go` file, update `run` to contain the snippet below. This code will go right after `defer cancel()` inside of the `run` function. You will need to import the new database package we just added the `Connect` function too:
 
 ```go
 // ... other code from run
@@ -253,18 +284,10 @@ if err != nil {
 
 // Create a structured logger, which will print logs in json format to the
 // writer we specify.
-logger := slog.New(slog.NewJSONHandler(w, nil))
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 // Create a new DB connection using environment config
-db, err := gorm.Open(postgres.Open(fmt.Sprintf(
-    "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-    config.DBHost,
-    config.DBUserName,
-    config.DBUserPassword,
-    config.DBName,
-    config.DBPort,
-)) &gorm.Config{})
-
+db, err := database.Connect(ctx, logger, cfg)
 if err != nil {
     return fmt.Errorf("[in main.run] failed to open database: %w", err)
 }
@@ -730,7 +753,8 @@ return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
 			r.Context(),
 			"failed to parse id from url",
 			slog.String("id", idStr),
-			slog.String("error", err.Error()))
+			slog.String("error", err.Error()),
+        )
 
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
 		return
@@ -742,7 +766,8 @@ return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
 		logger.ErrorContext(
 			r.Context(),
 			"failed to read user",
-			slog.String("error", err.Error()))
+			slog.String("error", err.Error()),
+        )
 
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
