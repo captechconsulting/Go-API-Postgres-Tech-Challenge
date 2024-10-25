@@ -319,6 +319,8 @@ in our database.
 Create a `user.go` file in the `internal/models` package. Add the following struct:
 
 ```go
+package models
+
 type User struct {
     ID       uint
     Name     string
