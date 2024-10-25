@@ -526,15 +526,15 @@ Modify the `run` function in `main.go` to include the following below the depend
 initalized:
 
 ```go
-usersService := services.NewUsersService()
+usersService := services.NewUsersService(logger, db)
 svr := server.NewServer(logger, cfg, usersService)
 httpServer := &http.Server{
-    Addr:    net.JoinHostPort(cfg.Host, cfg.Port)
-    Handler: svr
+    Addr:    net.JoinHostPort(cfg.Host, cfg.Port),
+    Handler: svr,
 }
 
 go func () {
-    logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr)
+    logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr))
     if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
         fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
     }
