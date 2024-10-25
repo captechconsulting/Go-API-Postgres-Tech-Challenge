@@ -562,7 +562,13 @@ pointer for an `http.Server`, attach our root handler to it, and start the serve
 We include some cleanup logic in a seperate goroutine that will be run when the application exits.
 
 If we run the application we should now see logs indicating our server is running including the
-address. Try hitting our user endpoint!
+address. Try hitting our user endpoint! You can do this by using a tool like [postman](https://www.postman.com/), a VSCode extension like [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client), or using `CURL` from the command line with the following command: 
+
+```bash
+curl localhost:8000/api/users/1
+```
+
+> Note, we are passing the ID of a user as the last value in the path. Try changing this value and see what happens!
 
 ## Generating Swagger Docs
 
