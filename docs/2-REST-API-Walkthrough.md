@@ -328,6 +328,7 @@ type User struct {
     Password string
 }
 ```
+Next, lets delete the `models.go` file in the models package as we wont be using this project.
 
 ### Creating our User Service
 
