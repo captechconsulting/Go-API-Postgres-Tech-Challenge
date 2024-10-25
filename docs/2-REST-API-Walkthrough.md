@@ -633,16 +633,9 @@ mux.Handle(
 )
 ```
 
-> **Note:** You will also need to add the following imports at the top of the file
->
-> ```
-> swaggerFiles "github.com/swaggo/files"
-> httpSwagger "github.com/swaggo/http-swagger"
-> ```
->
-> Next, generate the swagger documentation by running the following make command:
+Next, generate the swagger documentation by running the following make command:
 
-```
+```bash
 make swag-init
 ```
 
