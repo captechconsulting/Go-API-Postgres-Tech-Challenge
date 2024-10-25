@@ -627,7 +627,10 @@ Almost there! We can now attach swagger to our project and generate the document
 comments. In the `internal/routes/routes.go` we'll add a line to the `AddRoutes` function:
 
 ```go
-mux.Handle("GET /swagger/*", httpSwagger.Handler(httpSwagger.URL(net.JoinHostPort(config.Host, "1323"))))
+mux.Handle(
+    "GET /swagger/*", 
+    httpSwagger.Handler(httpSwagger.URL(net.JoinHostPort(config.Host, config.Port)+"/swagger/doc.json")),
+)
 ```
 
 > **Note:** You will also need to add the following imports at the top of the file
