@@ -824,6 +824,8 @@ This will serve as a spot for shared handler types and logic.
 Add the following interface and function to the file:
 
 ```go
+package handlers
+
 // validator is an object that can be validated.
 type validator interface {
     // Valid checks the object and returns any
