@@ -767,7 +767,7 @@ return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read the user
-	user, err := userReader.ReadUser(id)
+	user, err := userReader.ReadUser(uint64(id))
 	if err != nil {
 		logger.ErrorContext(
 			r.Context(),
