@@ -666,13 +666,13 @@ our application and hit our endpoints!
 
 We now have enough code to run the API end-to-end!
 
-At this point, you should be able to run your appliacation. You can do this using the make command
+At this point, you should be able to run your application. You can do this using the make command
 `make start-web-app` or using basic go build and run commands. If you encounter issues, ensure that
 your database container is running in podman, and that there are no syntax errors present in the
 code.
 
-Run the application and navigate to the swagger endpoint to see your collection of routes. Try
-ineracting with the read user route to verify it returns a response with our path parameter. Next,
+Run the application and navigate to the swagger endpoint to see your collection of routes. You can do this by going to the following URL in a web browser: http://localhost:8000/swagger/index.html. Try
+interacting with the read user route to verify it returns a response with our path parameter. Next,
 we'll finish fleshing out that handler and create the rest of our handlers and routes.
 
 ## Injecting the user service into the read user handler
