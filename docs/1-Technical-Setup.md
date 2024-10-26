@@ -199,7 +199,7 @@ Now that the database is running, we can connect to it using DBeaver.
 
 ## Create Go Module and Install Necessary Libraries
 
-To create your go project, open a terminal in the root project directory and run the following
+To create your Go project, open a terminal in the root project directory and run the following
 command, replacing `[name]` with your name.
 
 ```bash
