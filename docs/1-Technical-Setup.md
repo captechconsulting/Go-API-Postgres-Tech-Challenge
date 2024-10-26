@@ -55,7 +55,7 @@ brew install go
 go version
 ```
 
-### Colima
+### Colima (Docker)
 
 Due do licencing restrictions, Docker Desktop cannot be installed on CapTech machines. As an
 alternative, we recommend using colima, a CLI based docker engine, instead.
@@ -178,7 +178,7 @@ To start the database, run the following command:
 
 ```bash
 # start the database
-docker command up
+docker compose up
 ```
 
 Now that the database is running, we can connect to it using DBeaver.
@@ -186,12 +186,12 @@ Now that the database is running, we can connect to it using DBeaver.
 - First, open DBeaver and add a new connection, specifying PostgreSQL as the database type. Next,
   make sure that the host, port, database, and credentials match the values in the `.env` file.
 
-> ---
->
-> NOTE: If this is your first time using DBeaver, it may require you to download a JDBC driver to
-> continue. Just follow the steps provided to download the necessary driver to continue.
->
-> ---
+  > ---
+  >
+  > NOTE: If this is your first time using DBeaver, it may require you to download a JDBC driver to
+  > continue. Just follow the steps provided to download the necessary driver to continue.
+  >
+  > ---
 
 - Once you have connected to the database, confirm you can see the `comments` database and the
   tables
