@@ -213,7 +213,7 @@ go get github.com/caarlos0/env/v11
 go get github.com/joho/godotenv
 go get github.com/jackc/pgx/v5/stdlib
 go get github.com/swaggo/http-swagger/v2
-go get github.com/swaggo/swag
+go get github.com/swaggo/swag@latest
 go install github.com/swaggo/swag/cmd/swag@latest
 ```
 

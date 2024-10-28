@@ -376,8 +376,8 @@ func (s *UsersService) UpdateUser(ctx context.Context, id uint64, patch models.U
     return models.User{}, nil
 }
 
-// CreateUser attempts to create the provided user, returning a fully hydrated
-// models.User or an error.
+// DeleteUser attempts to delete the user with the provided id. An error is
+// returned if the delete fails.
 func (s *UsersService) DeleteUser(ctx context.Context, id uint64) error {
     return nil
 }
