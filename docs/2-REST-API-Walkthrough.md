@@ -382,8 +382,8 @@ func (s *UsersService) DeleteUser(ctx context.Context, id uint64) error {
     return nil
 }
 
-// CreateUser attempts to create the provided user, returning a fully hydrated
-// models.User or an error.
+// ListUsers attempts to list all users in the database. A slice of models.User
+// or an error is returned.
 func (s *UsersService) ListUsers(ctx context.Context, id uint64) ([]models.User, error) {
     return []models.User{}, nil
 }
