@@ -996,6 +996,90 @@ challenge:
 - There are already make targets set up to run unit tests. Specifically `check-coverage`. Feel free
   to modify these and add more if you would like to tailor them to your own preferences.
 
+### Example Unit Test
+
+Even though there are no requirements on how you write your tests, here is an example of a very basic unit test for a simple handler.
+
+First, lets create a new handler. For this we are going to create a health check endpoint. To do this, create the file `internal/handlers/health.go` and add the following code:
+
+```go
+// HandleHealthCheck handles the health check endpoint
+//
+//	@Summary		Health Check
+//	@Description	Health Check endpoint
+//	@Tags			health
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	uint
+//	@Router			/health  [GET]
+func HandleHealthCheck(logger *slog.Logger) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        logger.InfoContext(r.Context(), "health check called")
+	
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write([]byte(`{"status": "ok"}`))
+	}
+}
+```
+
+Next, lets register this handler with a route in side of the `internal/routes/routes.go` file by adding the following code to `AddRoutes()`:
+
+```go
+// health check
+mux.Handle("GET /api/health", handlers.HandleHealthCheck(logger))
+```
+
+If you start the application and navigate to `http://localhost:8000/api/health` you should see a response with a status of `ok`.
+
+Next, lets write a unit test for this handler. Create a new file `internal/handlers/health_test.go` and add the following unit test:
+
+```go
+func TestHandleHealthCheck(t *testing.T) {
+    tests := map[string]struct {
+        wantStatus int
+        wantBody   string
+    }{
+        "happy path": {
+            wantStatus: 200,
+            wantBody:   `{"status": "ok"}`,
+        },
+    }
+    for name, tc := range tests {
+        t.Run(name, func(t *testing.T) {
+            // Create a new request
+            req := httptest.NewRequest("GET", "/health", nil)
+
+            // Create a new response recorder
+            rec := httptest.NewRecorder()
+
+            // Create a new logger
+            logger := slog.Default()
+
+            // Call the handler
+            HandleHealthCheck(logger)(rec, req)
+
+            // Check the status code
+            if rec.Code != tc.wantStatus {
+                t.Errorf("want status %d, got %d", tc.wantStatus, rec.Code)
+            }
+
+            // Check the body
+            if rec.Body.String() != tc.wantBody {
+                t.Errorf("want body %q, got %q", tc.wantBody, rec.Body.String())
+            }
+        })
+    }
+}
+```
+
+Lets break down what is happening in this test:
+- We are creating a map of test cases. Each test case has a name, and a struct with the expected status code and body.
+- We are then iterating over each test case and running a sub-test for each one.
+- In each sub-test we are creating a new request, response recorder, and logger.
+- We then call the handler with the logger and response recorder.
+- Finally, we check the status code and body of the response recorder to ensure they match the expected values.
+
 ## Next Steps
 
 You are now ready to move on to the rest of the challenge. You can find the instructions for
