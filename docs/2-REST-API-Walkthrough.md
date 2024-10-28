@@ -16,6 +16,7 @@
     - [Route Setup](#route-setup)
     - [Server setup](#server-setup-1)
     - [Adding a server to main.go](#adding-a-server-to-maingo)
+- [Add Middleware](#add-middleware)
 - [Generating Swagger Docs](#generating-swagger-docs)
 - [Injecting the user service into the read user handler](#injecting-the-user-service-into-the-read-user-handler)
 - [Hiding the read user response type](#hiding-the-read-user-response-type)
@@ -52,10 +53,10 @@ By default, you should see the following file structure in your root directory
 │   │   └── handlers.go
 │   ├── routes/
 │   │   └── routes.go
-│   ├── server
-│   │   └── server.go
 │   ├── models
 │   │   └── models.go
+│   ├── middleware
+│   │   └── middleware.go
 │   └── services/
 │       └── user.go
 ├── .gitignore
@@ -102,31 +103,13 @@ We will first begin by setting up the database layer of our application.
 ### Configure the Connection to the Database
 
 In order for the project to be able to connect to the PostgreSQL database, we first need to handle
-configuration.
-
-First, create a `.env` file at the root of the project to contain environment variables, including
-the credentials required for the Postgres image.
-
-First, update the `.env` file with the following environment variables:
-
-```
-CLIENT_ORIGIN=http://localhost:3000
-HOST=127.0.0.1
-PORT=8000
-```
+configuration. During setup, we created a `.env` file to store environment variables. The values needed to connect to the database should already be there.
 
 ### Load and Validate Environment Variables
 
 To handle loading environment variables into the application, we will utilize the [
 `env`](https://github.com/caarlos0/env) package from `caarlos0` as well as the [
-`godotenv`](https://github.com/joho/godotenv) package.
-
-If you have not already done so, download these packages by running the following command in your
-terminal:
-
-```sh
-go get github.com/caarlos0/env/v11 github.com/joho/godotenv
-```
+`godotenv`](https://github.com/joho/godotenv) package. You should have already installed these packages during setup.
 
 `env` is used to parse values from our system environment variables and map them to properties on a
 struct we've defined. `env` can also be used to perform validation on environment variables such as
@@ -135,14 +118,20 @@ ensuring they are defined and don't contain an empty value.
 `godotenv` is used to load values from `.env` files into system environment variables. This allows
 us to define these values in a `.env` file for local development.
 
+First, lets add a few more values to the `.env` file:
+```.env
+CLIENT_ORIGIN=http://localhost:3000
+HOST=localhost
+PORT=8000
+LOG_LEVEL=DEBUG
+```
+
 Now, find the `internal/config/config.go` file. This is where we'll define the struct to contain our
 environment variables.
 
-Add the struct definition below to the file:
+Add the struct definition below to the file below the existing package definition:
 
 ```go
-package config
-
 // Config holds the application configuration settings. The configuration is loaded from
 // environment variables.
 type Config struct {
@@ -151,14 +140,13 @@ type Config struct {
     DBUserPassword string `env:"DATABASE_PASSWORD,required"`
     DBName         string `env:"DATABASE_NAME,required"`
     DBPort         string `env:"DATABASE_PORT,required"`
-    ServerPort     string `env:"PORT,required"`
     ClientOrigin   string `env:"CLIENT_ORIGIN,required"`
     Host           string `env:"HOST,required"`
     Port           string `env:"PORT,required"`
 }
 ```
 
-Now, add the following function to the file:
+Now, add the following function to the file below the `Config` struct:
 
 ```go
 // New loads configuration from environment variables and a .env file, and returns a
@@ -183,11 +171,13 @@ func New() (Config, error) {
 
 In the above code, we created a function called `New()` that is responsible for loading the
 environment variables from the `.env` file, validating them, and mapping them into our `Config`
-struct.
+struct. 
 
 The `New` naming convention is widely established in Go, and is used when we are returning an
 instance of an object from a package that shares the same name. Such as a `Config` object being
 returned from a `config` package.
+
+Note that we are using an underscore `_` to discard any posable errors from `godotenv.Load()` since we don't really care if there is an error and wont be handling the error if one was returned. Explicitly discarding errors when you don't want to handle them is considered a best practice as it signals to others that you meant to do this instead of just having forgotten to handle it.
 
 ### Creating a `run` function to initialize dependencies
 
@@ -196,12 +186,10 @@ file. One quirk of Go is that our `func main` can't return anything. Wouldn't it
 return an error or a status code from `main` to signal that a dependency failed to initialize? We're
 going to steal a pattern popularized by Matt Ryer to do exactly that.
 
-First, in `cmd/api/main.go` we're going to add the function below:
+First, in `cmd/api/main.go` we're going to add the function below the `main()` function definition:
 
 ```go
-func run(ctx context.Context, w io.Writer) error {
-    ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
-    defer cancel()
+func run(ctx context.Context) error {
     // We'll initialize dependencies here as we go...
 
     return nil
@@ -213,8 +201,8 @@ Next, we'll update `func main` to look like this:
 ```go
 func main() {
     ctx := context.Background()
-    if err := run(ctx, os.Stdout); err != nil {
-        fmt.Fprintf(os.Stderr, "%s\n", err)
+    if err := run(ctx); err != nil {
+        _, _ = fmt.Fprintf(os.Stderr, "server encountered an error: %s\n", err)
         os.Exit(1)
     }
 }
@@ -234,46 +222,39 @@ by Matt Ryer.
 Next, we'll connect our application to our PostgreSQL server. We'll leverage the `run` function we
 just created as the spot to load our variables and initialize this connection.
 
-To initialize our connection we're going to use the `gorm` package and it's underlying `postgres`
-driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error
+To initialize our connection we're going to use the `database/sql` package from the standard library and the `pgx/stdlib`
+Postgres driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error
 handling) you may want to create a separate database package.
 
-First, download the `gorm` package:
-
-```sh
-go get -u gorm.io/gorm gorm.io/driver/postgres
-```
-
-Then, in `internal/database/database.go`, lets add a new function called `Connect`. This function will be responsible for connection to our database. Add the following code:
+First, in `internal/database/database.go`, lets add a new function called `Connect`. This function will be responsible for connection to our database and testing that connection. Add the following code bellow the existing package definition:
 
 ```go
+// Connect establishes a database connection and returns the connection.
+func Connect(ctx context.Context, logger *slog.Logger, connectionString string) (*sql.DB, error) {
+	// Create a new DB connection using environment config
+	logger.DebugContext(ctx, "Connecting to database")
+	db, err := sql.Open("pgx", connectionString)
+	if err != nil {
+		return nil, fmt.Errorf("[in database.Connect] failed to open database: %w", err)
+	}
 
-func Connect(ctx context.Context, logger *slog.Logger, cfg Config) (*gorm.DB, error) {
-    // Create a new DB connection using environment config
-    logger.DebugContext(ctx, "Connecting to database")
-    db, err := gorm.Open(
-        postgres.Open(
-            fmt.Sprintf(
-                "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-                cfg.DBHost,
-                cfg.DBUserName,
-                cfg.DBUserPassword,
-                cfg.DBName,
-                cfg.DBPort,
-            ),
-        ),
-        &gorm.Config{},
-    )
-    if err != nil {
-        return fmt.Errorf("[in database.Connect] failed to open database: %w", err)
-    }
+	// Ping the database to verify connection
+	logger.DebugContext(ctx, "Pinging database")
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("[in database.Connect] failed to ping database: %w", err)
+	}
 
-    logger.DebugContext(ctx, "Successfully connected to database")
-
-    return db, nil
+	return db, nil
 }
-
 ```
+
+Then, add the following import to the existing import statement: 
+
+```go
+_ "github.com/jackc/pgx/v5/stdlib"
+```
+
+This will import the `pgx` driver to be used by the `database/sql` package. Note that we are not explicitly using the import, but are rather importing it for effect. Behind the scenes, an `init()` function is called in the `pgx` package when its imported that loaded the database driver so it can be used by the `database/sql` package.
 
 Now, back in the `cmd/api/main.go` file, update `run` to contain the snippet below. This code will go right after `defer cancel()` inside of the `run` function. You will need to import the new database package we just added the `Connect` function too:
 
@@ -288,15 +269,30 @@ if err != nil {
 
 // Create a structured logger, which will print logs in json format to the
 // writer we specify.
-logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: cfg.LogLevel,
+}))
 
 // Create a new DB connection using environment config
-db, err := database.Connect(ctx, logger, cfg)
+db, err := database.Connect(ctx, logger, fmt.Sprintf(
+    "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+    cfg.DBHost,
+    cfg.DBUserName,
+    cfg.DBUserPassword,
+    cfg.DBName,
+    cfg.DBPort,
+))
 if err != nil {
     return fmt.Errorf("[in main.run] failed to open database: %w", err)
 }
+defer func() {
+    logger.DebugContext(ctx, "Closing database connection")
+    if err = db.Close(); err != nil {
+        logger.ErrorContext(ctx, "Failed to close database connection", "err", err)
+    }
+}()
 
-logger.Info("Connected successfully to the database")
+logger.InfoContext(ctx, "Connected successfully to the database")
 
 // ... other code from run
 ```
@@ -349,46 +345,46 @@ definitions for our user service:
 // UsersService is a service capable of performing CRUD operations for
 // models.User models.
 type UsersService struct {
-    logger *slog.Logger
-    db     *gorm.DB
+	logger *slog.Logger
+	db     *sql.DB
 }
 
 // NewUsersService creates a new UsersService and returns a pointer to it.
-func NewUsersService(logger *slog.Logger, db *gorm.DB) *UsersService {
-    return &UsersService{
-        logger: logger,
-        db:     db,
-    }
+func NewUsersService(logger *slog.Logger, db *sql.DB) *UsersService {
+	return &UsersService{
+		logger: logger,
+		db:     db,
+	}
 }
 
 // CreateUser attempts to create the provided user, returning a fully hydrated
 // models.User or an error.
-func (s *UsersService) CreateUser(user models.User) (models.User, error) {
+func (s *UsersService) CreateUser(ctx context.Context, user models.User) (models.User, error) {
     return models.User{}, nil
 }
 
 // ReadUser attempts to read a user from the database using the provided id. A
 // fully hydrated models.User or error is returned.
-func (s *UsersService) ReadUser(id uint64) (models.User, error) {
+func (s *UsersService) ReadUser(ctx context.Context, id uint64) (models.User, error) {
     return models.User{}, nil
 }
 
 // UpdateUser attempts to perform an update of the user with the provided id,
 // updating, it to reflect the properties on the provided patch object. A
 // models.User or an error.
-func (s *UsersService) UpdateUser(id uint64, patch models.User) (models.User, error) {
+func (s *UsersService) UpdateUser(ctx context.Context, id uint64, patch models.User) (models.User, error) {
     return models.User{}, nil
 }
 
 // CreateUser attempts to create the provided user, returning a fully hydrated
 // models.User or an error.
-func (s *UsersService) DeleteUser(id uint64) error {
+func (s *UsersService) DeleteUser(ctx context.Context, id uint64) error {
     return nil
 }
 
 // CreateUser attempts to create the provided user, returning a fully hydrated
 // models.User or an error.
-func (s *UsersService) ListUsers(id uint64) ([]models.User, error) {
+func (s *UsersService) ListUsers(ctx context.Context, id uint64) ([]models.User, error) {
     return []models.User{}, nil
 }
 ```
@@ -399,39 +395,64 @@ flesh out the `ReadUser` method.
 Update the `ReadUser` method to below:
 
 ```go
-func (s *UsersService) ReadUser(id uint64) (models.User, error) {
-    var user models.User
+func (s *UsersService) ReadUser(ctx context.Context, id uint64) (models.User, error) {
+	s.logger.DebugContext(ctx, "Reading user", "id", id)
 
-    if err := s.db.First(&user, id).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return user, nil
-        }
-        return user, fmt.Errorf("[in services.UsersService.ReadUser] failed to read user: %w", err)
-    }
+	row := s.db.QueryRowContext(
+		ctx,
+		`
+		SELECT id,
+		       name,
+		       email,
+		       password
+		FROM users
+		WHERE id = $1::int
+        `,
+		id,
+	)
 
-    return user, nil
+	var user models.User
+
+	err := row.Scan(&user.ID, &user.Name, &user.Email, &user.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return models.User{}, nil
+		default:
+			return models.User{}, fmt.Errorf(
+				"[in services.UsersService.ReadUser] failed to read user: %w",
+				err,
+			)
+		}
+	}
+
+	return user, nil
 }
 ```
 
 Let's quickly walk through the structure of this method, as it will serve as a template for other
 similar methods:
 
-- First we create a `user` variable to hold the information of the user we search for.
-- Next we use the `First` method on our database connection to load the first record with a matching
-  ID. For documentation on this and other similar methods, see the Gorm
-  docs [here](https://gorm.io/docs/query.html).
+- First we call the `QueryRowContext()` method of our db object which executes a query that is expected to return at most one row. In this case, the query returns an object based on `id`.
+- Next we create a `user` variable to hold the information of the user we search for.
+- Next we scan the contents of the returned row into the `user` variable we just defined.
     - Note that we pass a pointer to the `user` variable we declared so that the information can be
       bound to the object.
-- Next we check if there was an error retrieving the information. If an error is present we wrap it
-  using `fmt.Errorf` and return it. More information on error wrapping can be
+- Next we check if there was an error retrieving the information. If there was, we do the following: 
+    - Check if the error is `sql.ErrNoRows`. If it is, we can return an empty `models.User` struct.
+    - For all other errors, we wrap it using `fmt.Errorf` and return it. More information on error wrapping can be
   found [here](https://rollbar.com/blog/golang-wrap-and-unwrap-error/#).
 - Finally if there was no error we return the `user`.
 
 Now that you've implemented the `ReadUser` method, go through an implement the other CRUD methods.
 
-These methods should leverage the `Where`, `First`, `Create`, `Model`, `Updates`, and `Delete`
-methods on the `db` object on `UsersService`. It is possible that there are other ways of
-implementing these methods and you should feel free to implement them as you see fit.
+These methods should leverage the `QueryContext`, `QueryRowContext`, and `ExecContext` methods on the `db` object on `UsersService`. It is possible that there are other ways of
+implementing these methods and you should feel free to implement them as you see fit. 
+
+If you get stuck, here are some helpful resources on working with `database/sql`:
+- [Tutorial: Accessing a relational database](https://go.dev/doc/tutorial/database-access)
+- [Go database/sql tutorial](http://go-database-sql.org/)
+- [How to Work with SQL Databases in Go](https://betterstack.com/community/guides/scaling-go/sql-databases-in-go/)
 
 ## Server Setup
 
@@ -494,96 +515,180 @@ func AddRoutes(mux *http.ServeMux, logger *slog.Logger, config config.Config, us
 }
 ```
 
-### Server setup
-
-Now that we've configured our handlers and routes we'll create an instance of an `http.Server` to
-serve them.
-
-In the `internal/server/server.go` file we'll define the function below:
-
-```go
-func NewServer(logger *slog.Logger, config config.Config, usersService *services.UsersService) http.Handler {
-    // Create a serve mux to act as our route multiplexer
-    mux := http.NewServeMux()
-    // Add our routes to the mux
-    routes.AddRoutes(
-        mux,
-        logger,
-        config,
-        usersService,
-    )
-
-    // Optionally configure middleware on the mux
-    var handler http.Handler = mux
-    // handler = someMiddleware(handler)
-    // handler = someMiddleware2(handler)
-    // handler = someMiddleware3(handler)
-    return handler
-}
-```
-
 ### Adding a server to main.go
 
-With our server constructor defined we can add our server to `main.go`
+With our service and handler defined we can add our server in `main.go`
 
 Modify the `run` function in `main.go` to include the following below the dependencies we've
-initalized:
+initialized along with code to create and run our server along with graceful shutdown logic:
 
 ```go
 usersService := services.NewUsersService(logger, db)
-svr := server.NewServer(logger, cfg, usersService)
+
+// Create a serve mux to act as our route multiplexer
+mux := http.NewServeMux()
+
+// Add our routes to the mux
+routes.AddRoutes(mux, logger, usersService)
+
+// Create a new http server with our mux as the handler
 httpServer := &http.Server{
     Addr:    net.JoinHostPort(cfg.Host, cfg.Port),
-    Handler: svr,
+    Handler: mux,
 }
 
-go func () {
-    logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr))
-    if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-        fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
+errChan := make(chan error)
+
+// Server run context
+ctx, done := context.WithCancel(ctx)
+defer done()
+
+// Handle graceful shutdown with go routine on SIGINT
+go func() {
+    // create a channel to listen for SIGINT and then block until it is received
+    sig := make(chan os.Signal, 1)
+    signal.Notify(sig, os.Interrupt)
+    <-sig
+
+    logger.DebugContext(ctx, "Received SIGINT, shutting down server")
+
+    // Create a context with a timeout to allow the server to shut down gracefully
+    ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+    // Shutdown the server. If an error occurs, send it to the error channel
+    if err = httpServer.Shutdown(ctx); err != nil {
+        errChan <- fmt.Errorf("[in main.run] failed to shutdown http server: %w", err)
+        return
     }
+
+    // Close the idle connections channel, unblocking `run()`
+    done()
 }()
-var wg sync.WaitGroup
-wg.Add(1)
-go func () {
-    defer wg.Done()
-    <-ctx.Done()
-    shutdownCtx := context.Background()
-    shutdownCtx, cancel := context.WithTimeout(shutdownCtx, 10 * time.Second)
-    defer cancel()
-    if err := httpServer.Shutdown(shutdownCtx); err != nil {
-        fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
+
+// Start the http server
+logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr))
+if err = httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+    switch {
+    // once httpServer.Shutdown is called, it will always return an
+    // http.ErrServerClosed error and we don't care about that error so we will
+    // break.
+    case errors.Is(err, http.ErrServerClosed):
+        break
+    default:
+        return fmt.Errorf("[in main.run] failed to listen and serve: %w", err)
     }
-}()
-wg.Wait()
-return nil
+}
+
+// block until the server is shut down or an error occurs
+select {
+case err = <-errChan:
+    return err
+case <-ctx.Done():
+    return nil
+}
 ```
 
-This code initializes our `services.UsersService` and an instance of our server with routes and
-middlware. This instance will act as the root handler for our `http.Server`. Finally we create a
-pointer for an `http.Server`, attach our root handler to it, and start the server in a goroutine.
+Lets talk about whats going on here:
+- First, we are initializing an instance of our `UserService` by passing the logger and database connection to it.
+- next, we are creating a server mux, passing it to `AddRoutes()` to add routes, and then creating an instance of the `http.Server` struct that includes the address of our web server and our mux.
+- After that, we are setting up graceful shutdown logic. We do this by: 
+    - Starting a Go routine and the immediately blocking until we receive a cancellation signal across a chanel. This lets us wait until the server is starting to shutdown before running any shutdown logic we need. 
+    - After the signal is received, we create a cancellation context so that when we call `httpServer.Shutdown`, it can only run for a fixed amount of time. 
+    - After all the shutdown logic has run, we call `done()` which will unblock our `run()` function and let us finally exit.
+- Next, we start our server by calling httpServer.ListenAndServe() and checking any errors that are returned.
+- Lastly, we use a `select` statement to block until the server has successfully shut down, or an error is sent across the `errChan` channel from our graceful shutdown Go routine.
 
-We include some cleanup logic in a seperate goroutine that will be run when the application exits.
 
 If we run the application we should now see logs indicating our server is running including the
 address. Try hitting our user endpoint! You can do this by using a tool like [postman](https://www.postman.com/), a VSCode extension like [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client), or using `CURL` from the command line with the following command: 
 
 ```bash
-curl localhost:8000/api/users/1
+curl -X GET localhost:8000/api/users/1
+```
+> Note, we are passing the ID of a user as the last value in the path. Try changing this value and see what happens!
+
+Now try closing the application with `ctrl + C`. You should see some log messages in the terminal telling you that your graceful shutdown logic is running!
+
+## Add Middleware
+
+We often will need to modify or inspect requests and responses before or after they are handled by our handlers. Middleware is a way to do this. Middleware is a function that wraps an `http.Handler` and can modify the request or response before or after the handler is called. 
+
+First, in `internal/middleware/middleware, add the following line:
+
+```go
+// Middleware is a function that wraps an http.Handler.
+type Middleware func(next http.Handler) http.Handler
 ```
 
-> Note, we are passing the ID of a user as the last value in the path. Try changing this value and see what happens!
+This defines a custom type `Middleware` that is a function that takes an `http.Handler` and returns an `http.Handler`. This will allow us to define middleware that can wrap our handlers and modify the request or response before or after the handler is called.
+
+Next, create the file `internal/middleware/logger.go` and add the following code:
+
+```go
+type wrappedWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *wrappedWriter) WriteHeader(statusCode int) {
+	w.ResponseWriter.WriteHeader(statusCode)
+	w.statusCode = statusCode
+}
+
+// Logger is a middleware that logs the request method, path, duration, and
+// status code.
+func Logger(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+
+			wrapped := &wrappedWriter{
+				ResponseWriter: w,
+				statusCode:     http.StatusOK,
+			}
+
+			next.ServeHTTP(wrapped, r)
+
+			logger.InfoContext(
+				r.Context(),
+				"request completed",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("duration", time.Since(start).String()),
+				slog.Int("status", wrapped.statusCode),
+			)
+		})
+	}
+}
+````
+
+There is a lot going on here, so lets break it down:
+- We define a new type `wrappedWriter` that embeds an `http.ResponseWriter` and adds a `statusCode` field. This will allow us to track the status code of the response.
+- We define a WriteHeader method on `wrappedWriter` that sets the `statusCode` field. This method overrides the method of the same name on the `http.ResponseWriter` interface. When a handler calls `WriteHeader` to set the status code of the response, it will actually call this method instead. We can use this to access the status code of the response.
+- We define a `Logger` function that returns a `Middleware` function using a closure. This function takes a logger and returns a middleware function that logs the request method, path, duration, and status code of the response. We do this by wrapping the `http.Handler` that is passed to the middleware function and calling the `ServeHTTP` method on the wrapped handler. This allows us to run code before and after the handler is called. After the handler is called, we log the request method, path, duration, and status code of the response.
+
+Next, in `cmd/api/main.go`, add the following code to the `run` function between the call to `routes.AddRoutes` and the definition of `httpServer` to add the logger middleware to the mux:
+
+```go
+// Wrap the mux with middleware
+wrappedMux := middleare.Logger(logger)(mux)
+```
+Finally, update the `httpServer` definition to use the `wrappedMux` instead of the `mux`:
+
+```go
+// Create a new http server with our mux as the handler
+httpServer := &http.Server{
+    Addr:    net.JoinHostPort(cfg.Host, cfg.Port),
+    Handler: wrappedMux,
+}
+```
+
+If you run the application now and make a request to the existing endpoint, you should see logs indicating that the request method, path, duration, and status code are being logged. Try hitting the user endpoint again and see the logs that are generated!
 
 ## Generating Swagger Docs
 
-To add swagger to our application, ensure that you have already installed swaggo to the project
-using the command below in your terminal:
-
-```sh
-go install github.com/swaggo/swag/cmd/swag@latest
-```
-
-Next, we will need to provide swagger basic information to help generate our swagger documentation.
+To add swagger to our application, we will need to provide swagger basic information to help generate our swagger documentation.
 In `internal/routes/routes.go` add the following comments above the `AddRoutes` function:
 
 ```
@@ -628,12 +733,33 @@ additional annotations you will need,
 see [Swaggo Api Operation](https://github.com/swaggo/swag?tab=readme-ov-file#api-operation).
 
 Almost there! We can now attach swagger to our project and generate the documentation based off our
-comments. In the `internal/routes/routes.go` we'll add a line to the `AddRoutes` function:
+comments. In the `internal/routes/routes.go`, update the `AddRoutes` function to match:
 
 ```go
-mux.Handle(
-    "GET /swagger/*", 
-    httpSwagger.Handler(httpSwagger.URL(net.JoinHostPort(config.Host, config.Port)+"/swagger/doc.json")),
+func AddRoutes(mux *http.ServeMux, logger *slog.Logger, usersService *services.UsersService, baseURL string) {
+	// Read a user
+	mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger))
+
+	// swagger docs
+	mux.Handle(
+		"GET /swagger/",
+		httpSwagger.Handler(httpSwagger.URL(baseURL+"/swagger/doc.json")),
+	)
+	logger.Info("Swagger running", slog.String("url", baseURL+"/swagger/index.html"))
+}
+```
+
+We have now added a new handler that will show us our swagger docs in the browser.
+
+Next, lets update our call to `AddRoutes()` in `main.run()` to include the base URL. It should now look like this:
+
+```go
+// Add our routes to the mux
+routes.AddRoutes(
+    mux,
+    logger,
+    usersService,
+    fmt.Sprintf("http://%s:%s", cfg.Host, cfg.Port),
 )
 ```
 
@@ -646,20 +772,8 @@ make swag-init
 If successful, this should generate the swagger documentation for the project and place it in
 `cmd/api/docs`.
 
-> **Important:** The documentation that was just created may contain an error at the end of the file
-> which will need to be handled before starting the application. To fix this, proceed over to the
-> newly generated `cmd/api/docs/docs.go` file and remove the following two lines at the end of the
-> project:
->
-> ```
-> LeftDelim:        "{{",
-> RightDelim:       "}}",
-> ```
->
-> This issue appears to occur every time you generate the swagger documentation, and will be
-> something to note as you continue working through the tech challenge
-> Finally, proceed over to `cmd/api/main.go` and add the following to your list of imports. Remember
-> to replace `[name]` with your name:
+Finally, go back to `internal/routes/routes.go` and add the following to your list of imports. Remember
+to replace `[name]` with your name:
 
 ```
 _ "github.com/[name]/blog/cmd/api/docs"
@@ -672,7 +786,7 @@ We now have enough code to run the API end-to-end!
 
 At this point, you should be able to run your application. You can do this using the make command
 `make start-web-app` or using basic go build and run commands. If you encounter issues, ensure that
-your database container is running in podman, and that there are no syntax errors present in the
+your database container is running in with colima, and that there are no syntax errors present in the
 code.
 
 Run the application and navigate to the swagger endpoint to see your collection of routes. You can do this by going to the following URL in a web browser: http://localhost:8000/swagger/index.html. Try
@@ -697,7 +811,7 @@ In `internal/handlers/read_user.go` add the following interface definition to th
 // userReader represents a type capable of reading a user from storage and
 // returning it or an error.
 type userReader interface {
-    ReadUser(id uint64) (models.User, error)
+    ReadUser(ctx context.Context, id uint64) (models.User, error)
 }
 ```
 
@@ -752,57 +866,61 @@ map it into a response. Update the `http.HandlerFunc` returned from `HandleReadU
 following:
 
 ```go
-return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
-	// Read id from path parameters
-	idStr := r.PathValue("id")
+func HandleReadUser(logger *slog.Logger, userReader userReader) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-	// Convert the ID from string to int
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		logger.ErrorContext(
-			r.Context(),
-			"failed to parse id from url",
-			slog.String("id", idStr),
-			slog.String("error", err.Error()),
-        )
+		// Read id from path parameters
+		idStr := r.PathValue("id")
 
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
-		return
-	}
+		// Convert the ID from string to int
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			logger.ErrorContext(
+				r.Context(),
+				"failed to parse id from url",
+				slog.String("id", idStr),
+				slog.String("error", err.Error()),
+			)
 
-	// Read the user
-	user, err := userReader.ReadUser(uint64(id))
-	if err != nil {
-		logger.ErrorContext(
-			r.Context(),
-			"failed to read user",
-			slog.String("error", err.Error()),
-        )
+			http.Error(w, "Invalid ID", http.StatusBadRequest)
+			return
+		}
 
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+		// Read the user
+		user, err := userReader.ReadUser(ctx, uint64(id))
+		if err != nil {
+			logger.ErrorContext(
+				r.Context(),
+				"failed to read user",
+				slog.String("error", err.Error()),
+			)
 
-	// Convert our models.User domain model into a response model.
-	response := readUserResponse{
-		ID:       user.ID,
-		Name:     user.Name,
-		Email:    user.Email,
-		Password: user.Password,
-	}
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 
-	// Encode the response model as JSON
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.ErrorContext(
-			r.Context(),
-			"failed to encode response",
-			slog.String("error", err.Error()))
+		// Convert our models.User domain model into a response model.
+		response := readUserResponse{
+			ID:       user.ID,
+			Name:     user.Name,
+			Email:    user.Email,
+			Password: user.Password,
+		}
 
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
-})
+		// Encode the response model as JSON
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.ErrorContext(
+				r.Context(),
+				"failed to encode response",
+				slog.String("error", err.Error()))
+
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	})
+}
 ```
 
 At this point we can restart the server process and hit our read user endpoint again from swagger.

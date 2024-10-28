@@ -18,26 +18,15 @@ stop-web-app:
 	@$(MAKE) stop-database
 	@$(MAKE) LOG MSG_TYPE=success LOG_MESSAGE="Stopped database"
 
-.PHONY: start-podman-machine
-start-podman-machine:
-	@$(MAKE) LOG MSG_TYPE=info LOG_MESSAGE="Starting Podman machine..."
-	@podman machine list | grep -q 'running' || podman machine start
-
-.PHONY: stop-podman-machine
-stop-podman-machine:
-	@$(MAKE) LOG MSG_TYPE=info LOG_MESSAGE="Stopping Podman machine..."
-	@podman machine list --noheading --format "{{.Name}} {{.Running}}" | grep 'true' > /dev/null && podman machine stop || true
-
 .PHONY: start-database
 start-database:
 	@$(MAKE) LOG MSG_TYPE=info LOG_MESSAGE="Starting database..."
-	@podman start PostgresServer
+	@docker compose up -d
 
 .PHONY: stop-database
 stop-database:
 	@$(MAKE) LOG MSG_TYPE=info LOG_MESSAGE="Stopping database..."
-	@podman stop PostgresServer
-
+	@docker compose down
 
 run-unit-test:
 	go test -cover ./internal/service ./internal/config ./internal/database ./internal/routes ./cmd/api
