@@ -120,7 +120,6 @@ us to define these values in a `.env` file for local development.
 
 First, lets add a few more values to the `.env` file:
 ```.env
-CLIENT_ORIGIN=http://localhost:3000
 HOST=localhost
 PORT=8000
 LOG_LEVEL=DEBUG
@@ -135,14 +134,14 @@ Add the struct definition below to the file below the existing package definitio
 // Config holds the application configuration settings. The configuration is loaded from
 // environment variables.
 type Config struct {
-    DBHost         string `env:"DATABASE_HOST,required"`
-    DBUserName     string `env:"DATABASE_USER,required"`
-    DBUserPassword string `env:"DATABASE_PASSWORD,required"`
-    DBName         string `env:"DATABASE_NAME,required"`
-    DBPort         string `env:"DATABASE_PORT,required"`
-    ClientOrigin   string `env:"CLIENT_ORIGIN,required"`
-    Host           string `env:"HOST,required"`
-    Port           string `env:"PORT,required"`
+    DBHost         string     `env:"DATABASE_HOST,required"`
+    DBUserName     string     `env:"DATABASE_USER,required"`
+    DBUserPassword string     `env:"DATABASE_PASSWORD,required"`
+    DBName         string     `env:"DATABASE_NAME,required"`
+    DBPort         string     `env:"DATABASE_PORT,required"`
+    Host           string     `env:"HOST,required"`
+    Port           string     `env:"PORT,required"`
+    LogLevel       slog.Level `env:"LOG_LEVEL,required"`
 }
 ```
 
@@ -186,11 +185,21 @@ file. One quirk of Go is that our `func main` can't return anything. Wouldn't it
 return an error or a status code from `main` to signal that a dependency failed to initialize? We're
 going to steal a pattern popularized by Matt Ryer to do exactly that.
 
-First, in `cmd/api/main.go` we're going to add the function below the `main()` function definition:
+First, in `cmd/api/main.go` we're going to add the `run` function below the `main()` function definition. It should contain logic to call `config.New()` and initialize a logger. The `run()` function will be responsible for initializing all our dependencies and starting our application:
 
 ```go
 func run(ctx context.Context) error {
-    // We'll initialize dependencies here as we go...
+    // Load and validate environment config
+    cfg, err := config.New()
+    if err != nil {
+        return fmt.Errorf("[in main.run] failed to load config: %w", err)
+    }
+    
+    // Create a structured logger, which will print logs in json format to the
+    // writer we specify.
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+        Level: cfg.LogLevel,
+    }))
 
     return nil
 }
@@ -226,26 +235,39 @@ To initialize our connection we're going to use the `database/sql` package from 
 Postgres driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error
 handling) you may want to create a separate database package.
 
-First, in `internal/database/database.go`, lets add a new function called `Connect`. This function will be responsible for connection to our database and testing that connection. Add the following code bellow the existing package definition:
+First, in `cmd/api/main.go`, lets update `run`. Since connection to the database is just startup logic, we put it hear instead of in its own package. Add the bellow code to the `run` function after to configuration and logger setup logic.:
 
 ```go
-// Connect establishes a database connection and returns the connection.
-func Connect(ctx context.Context, logger *slog.Logger, connectionString string) (*sql.DB, error) {
-	// Create a new DB connection using environment config
-	logger.DebugContext(ctx, "Connecting to database")
-	db, err := sql.Open("pgx", connectionString)
-	if err != nil {
-		return nil, fmt.Errorf("[in database.Connect] failed to open database: %w", err)
-	}
-
-	// Ping the database to verify connection
-	logger.DebugContext(ctx, "Pinging database")
-	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("[in database.Connect] failed to ping database: %w", err)
-	}
-
-	return db, nil
+// Create a new DB connection using environment config
+logger.DebugContext(ctx, "Connecting to database")
+db, err := sql.Open("pgx", fmt.Sprintf(
+    "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+    cfg.DBHost,
+    cfg.DBUserName,
+    cfg.DBUserPassword,
+    cfg.DBName,
+    cfg.DBPort,
+))
+if err != nil {
+    return fmt.Errorf("[in database.Connect] failed to open database: %w", err)
 }
+
+// Ping the database to verify connection
+logger.DebugContext(ctx, "Pinging database")
+if err = db.PingContext(ctx); err != nil {
+    return fmt.Errorf("[in database.Connect] failed to ping database: %w", err)
+}
+
+defer func() {
+    logger.DebugContext(ctx, "Closing database connection")
+    if err = db.Close(); err != nil {
+        logger.ErrorContext(ctx, "Failed to close database connection", "err", err)
+    }
+}()
+
+logger.InfoContext(ctx, "Connected successfully to the database")
+
+return nil                                                  
 ```
 
 Then, add the following import to the existing import statement: 
@@ -523,6 +545,7 @@ Modify the `run` function in `main.go` to include the following below the depend
 initialized along with code to create and run our server along with graceful shutdown logic:
 
 ```go
+// Create a new users service
 usersService := services.NewUsersService(logger, db)
 
 // Create a serve mux to act as our route multiplexer
