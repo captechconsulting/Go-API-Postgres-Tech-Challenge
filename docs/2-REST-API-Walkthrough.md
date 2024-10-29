@@ -1,63 +1,99 @@
 # Part 2: REST API Walkthrough
 
 ## Table of Contents
+
 - [Overview](#overview)
 - [Project Structure](#project-structure)
 - [Database Setup](#database-setup)
-	- [Configure the Connection to the Database](#configure-the-connection-to-the-database)
-	- [Load and Validate the Environment Variables](#load-and-validate-the-environment-variables)
-	- [Make a Utility Function to Connect to PostgreSQL](#make-a-utility-function-to-connect-to-postgresql)
-	- [Test the Connection to the Database](#test-the-connection-to-the-database)
-	- [Setting up User Model](#setting-up-user-model)
-	- [Setting up User Utilities](#setting-up-user-utilities)
+    - [Configure the Connection to the Database](#configure-the-connection-to-the-database)
+    - [Load and Validate the Environment Variables](#load-and-validate-environment-variables)
+    - [Creating a `run` function to initialize dependencies](#creating-a-run-function-to-initialize-dependencies)
+    - [Connect to PostgreSQL](#connect-to-postgresql)
+    - [Setting up User Model](#setting-up-user-model)
+    - [Creating our User Service](#creating-our-user-service)
 - [Service Setup](#service-setup)
-	- [Defining Models](#defining-models)
-	- [Implementing UserService Methods](#implementing-userservice-methods)
-- [Server Setup](#server-setup)
-	- [routes.go Setup](#routesgo-setup)
-	- [user.go Setup](#usergo-setup)
-	- [Gin Engine Setup](#gin-engine-setup)
-	- [Generating Swagger Docs](#generating-swagger-docs)
-	- [main.go Setup and Running Application](#maingo-setup-and-running-application)
+    - [Handler setup](#handler-setup)
+    - [Route Setup](#route-setup)
+    - [Server setup](#server-setup-1)
+    - [Adding a server to main.go](#adding-a-server-to-maingo)
+- [Generating Swagger Docs](#generating-swagger-docs)
+- [Injecting the user service into the read user handler](#injecting-the-user-service-into-the-read-user-handler)
+- [Hiding the read user response type](#hiding-the-read-user-response-type)
+- [Reading the user and mapping it to a response](#reading-the-user-and-mapping-it-to-a-response)
+- [Flesh out user CRUD routes / handlers](#flesh-out-user-crud-routes--handlers)
+- [Input model validation](#input-model-validation)
 - [Unit Testing](#unit-testing)
-	- [Unit Testing Introduction](#unit-testing-introduction)
-	- [Unit Testing in This Tech Challenge](#unit-testing-in-this-tech-challenge)
+    - [Unit Testing Introduction](#unit-testing-introduction)
+    - [Unit Testing in This Tech Challenge](#unit-testing-in-this-tech-challenge)
+- [Next Steps](#next-steps)
 
 
 ## Overview
 
-As previously mentioned, this challenge is centered around the use of Gin, a very popular web framework for Go. Gin enables you to easily create web servers with full control of routing, validation and much more. For more information on Gin, check out [this Gin overview](https://gin-gonic.com/docs/introduction/) or the [Gin package docs](https://pkg.go.dev/github.com/gin-gonic/gin).The Gin web server will connect to a PostgreSQL database in the backend. This walkthrough will consist of a step-by-step guide for creating the REST API for the `users` table in the database. By the end of the walkthrough, you will have endpoints capable of creating, reading, updating, and deleting from the `users` table.
+As previously mentioned, this challenge is centered around the use of the `net/http` library for
+developing API's. Our web server will connect to a PostgreSQL database in the backend. This
+walkthrough will consist of a step-by-step guide for creating the REST API for the `users` table in
+the database. By the end of the walkthrough, you will have endpoints capable of creating, reading,
+updating, and deleting from the `users` table.
 
 ## Project Structure
 
 By default, you should see the following file structure in your root directory
+
 ```
-cmd/
-  http/
-    routes/
-    main.go
-internal/
-  config/
-  database/
-  service/
-Makefile
+.
+├── cmd/
+│   └── api/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── handlers
+│   │   └── handlers.go
+│   ├── routes/
+│   │   └── routes.go
+│   ├── server
+│   │   └── server.go
+│   ├── models
+│   │   └── models.go
+│   └── services/
+│       └── user.go
+├── .gitignore
+├── Makefile
+└── README.md
 ```
 
-Before beginning to look through the project structure, ensure that you first understand the basics of Go project structuring. As a good starting place, check out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team, or check out [this Markdown file](https://gist.github.com/ayoubzulfiqar/9f1a34049332711fddd4d4b2bfd46096) with a common structure. It is important to note, that one size does not fit all Go projects. It may make more sense to vary from these common structures, depending on the work you are doing.
+Before beginning to look through the project structure, ensure that you first understand the basics
+of Go project structuring. As a good starting place, check
+out [Organizing a Go Module](https://go.dev/doc/modules/layout) from the Go team. It is important to
+note that one size does not fit all Go projects. Applications can be designed on a spectrum ranging
+from very lean and flat layouts, to highly structured and nested layouts. This challenge will sit in
+the middle, with a layout that can be applied to a broad set of Go applications.
 
+The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will
+only need one entrypoint into the application, `api`.
 
-The `cmd/` folder contains the entrypoint(s) for the application. For this Tech Challenge, we will only need one entrypoint into the application, `http`. However, as an extension, you could implement more entrypoints.
+The `cmd/api` folder contains the entrypoint code specific to setting up a webserver for our
+application. This code should be very minimal and is primarily focused on initializing dependencies
+for our application then starting the application.
 
-The `cmd/http` folder contains the entrypoint code specific to setting up a webserver for our application. This includes the handler functions for the various endpoints.
+The `internal/` folder contains internal packages that comprise the bulk of the application logic
+for the challenge:
 
-The `internal/` folder contains internal packages that comprise the bulk of the application logic for the challenge:
-- The `config` package contains utilities for configuring the database
-- The `database` package contains logic for connecting to and hydrating the database, interacting with the database, and models for the various entities we will be working with
-- The `service` package is responsible for the main application logic that will be called by the handlers, and will utilize the `database` package
+- `config` contains our application configuration
+- `handlers` contains our http handlers which are the functions that execute when a request is sent
+  to the application
+- `models` contains domain models for the application
+- `routes` contains our route definitions which map a URL to a handler
+- `server` contains a constructor for a fully configured `http.Server`
+- `services` contains our service layer which is responsible for our application logic
 
-The `Makefile` contains various `make` commands that will be helpful throughout the project. We will reference these as they are needed. Feel free to look through the `Makefile` to get an idea for what's there or add your own make targets.
+The `Makefile` contains various `make` commands that will be helpful throughout the project. We will
+reference these as they are needed. Feel free to look through the `Makefile` to get an idea for
+what's there or add your own make targets.
 
-Now that you are familiar with the current structure of the project, we can begin connecting our application to our database.
+Now that you are familiar with the current structure of the project, we can begin connecting our
+application to our database.
 
 ## Database Setup
 
@@ -65,533 +101,784 @@ We will first begin by setting up the database layer of our application.
 
 ### Configure the Connection to the Database
 
-In order for the project to be able to connect to the PostgreSQL database, you will need to handle the configuration.
+In order for the project to be able to connect to the PostgreSQL database, we first need to handle
+configuration.
 
-First, create an `app.env` file to contain the credentials required for the Postgres image.
+First, create a `.env` file at the root of the project to contain environment variables, including
+the credentials required for the Postgres image.
+
+First, update the `.env` file with the following environment variables:
+
 ```
-POSTGRES_HOST=127.0.0.1
-POSTGRES_USER=user
-POSTGRES_PASSWORD=goChallenge
-POSTGRES_DB=blogs
-POSTGRES_PORT=5432
-
-PORT=8000
 CLIENT_ORIGIN=http://localhost:3000
+HOST=127.0.0.1
+PORT=8000
 ```
 
-### Load and Validate the Environment Variables
-To handle loading the environment variables into the application, we will be utilizing the `viper` package. If you have not already done so, download the `viper` package by running the following command in your terminal.
-```
-go get github.com/spf13/viper
+### Load and Validate Environment Variables
+
+To handle loading environment variables into the application, we will utilize the [
+`env`](https://github.com/caarlos0/env) package from `caarlos0` as well as the [
+`godotenv`](https://github.com/joho/godotenv) package.
+
+If you have not already done so, download these packages by running the following command in your
+terminal:
+
+```sh
+go get github.com/caarlos0/env/v11 github.com/joho/godotenv
 ```
 
-Now, find the `internal/config/config.go` file that will be responsible for storing the structs to contain the allowed environment variables. Add in the following struct: 
-```
+`env` is used to parse values from our system environment variables and map them to properties on a
+struct we've defined. `env` can also be used to perform validation on environment variables such as
+ensuring they are defined and don't contain an empty value.
+
+`godotenv` is used to load values from `.env` files into system environment variables. This allows
+us to define these values in a `.env` file for local development.
+
+Now, find the `internal/config/config.go` file. This is where we'll define the struct to contain our
+environment variables.
+
+Add the struct definition below to the file:
+
+```go
+package config
+
+// Config holds the application configuration settings. The configuration is loaded from
+// environment variables.
 type Config struct {
-	DBHost         string `mapstructure:"POSTGRES_HOST"`
-	DBUserName     string `mapstructure:"POSTGRES_USER"`
-	DBUserPassword string `mapstructure:"POSTGRES_PASSWORD"`
-	DBName         string `mapstructure:"POSTGRES_DB"`
-	DBPort         string `mapstructure:"POSTGRES_PORT"`
-	ServerPort     string `mapstructure:"PORT"`
-
-	ClientOrigin string `mapstructure:"CLIENT_ORIGIN"`
+    DBHost         string `env:"DATABASE_HOST,required"`
+    DBUserName     string `env:"DATABASE_USER,required"`
+    DBUserPassword string `env:"DATABASE_PASSWORD,required"`
+    DBName         string `env:"DATABASE_NAME,required"`
+    DBPort         string `env:"DATABASE_PORT,required"`
+    ServerPort     string `env:"PORT,required"`
+    ClientOrigin   string `env:"CLIENT_ORIGIN,required"`
+    Host           string `env:"HOST,required"`
+    Port           string `env:"PORT,required"`
 }
 ```
 
-Now, add the following function to the `internal/config/config.go` file:
-```
-func LoadConfig(path string) (*Config, error) {
-   var config Config
-   viper.AddConfigPath(path)
-   viper.SetConfigType("env")
-   viper.SetConfigName("app")
-   
-   viper.AutomaticEnv()
+Now, add the following function to the file:
 
-   err := viper.ReadInConfig()
-   if err != nil {
-       return &config, err
-   }
+```go
+// New loads configuration from environment variables and a .env file, and returns a
+// Config struct or error.
+func New() (Config, error) {
+    // Load values from a .env file and add them to system environment variables.
+    // Discard errors coming from this function. This allows us to call this
+    // function without a .env file which will by default load values directly
+    // from system environment variables.
+    _ = godotenv.Load()
 
-   err = viper.Unmarshal(&config)
-   return &config, err
+    // Once values have been loaded into system env vars, parse those into our
+    // config struct and validate them returning any errors.
+    cfg, err := env.ParseAs[Config]()
+    if err != nil {
+        return Config{}, fmt.Errorf("[in config.New] failed to parse config: %w", err)
+    }
+
+    return cfg, nil
 }
 ```
-In the above code, we created a function called `LoadConfig()` responsible for loading the environment variables from the `app.env` file and make them accessible in other files and packages within the application code.
 
-### Make a Utility Function to Connect to PostgreSQL
+In the above code, we created a function called `New()` that is responsible for loading the
+environment variables from the `.env` file, validating them, and mapping them into our `Config`
+struct.
 
-Next, we will write a helper function to connect to the PostgreSQL server from the application. To do that, we will be utilizing the `gorm` package and the underlying `postgres` driver from GORM. We will wrap this connection in a `Database` struct so that one connection can be passed around the program. First, download the `gorm` package: 
-```
-go get -u gorm.io/gorm  
+The `New` naming convention is widely established in Go, and is used when we are returning an
+instance of an object from a package that shares the same name. Such as a `Config` object being
+returned from a `config` package.
+
+### Creating a `run` function to initialize dependencies
+
+Now that we can load config, let's take a step back and make an update to our `cmd/api/main.go`
+file. One quirk of Go is that our `func main` can't return anything. Wouldn't it be nice if we could
+return an error or a status code from `main` to signal that a dependency failed to initialize? We're
+going to steal a pattern popularized by Matt Ryer to do exactly that.
+
+First, in `cmd/api/main.go` we're going to add the function below:
+
+```go
+func run(ctx context.Context, w io.Writer) error {
+    ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+    defer cancel()
+    // We'll initialize dependencies here as we go...
+
+    return nil
+}
 ```
 
-Then, in the `internal/database/database.go` file, add the function and struct below:
+Next, we'll update `func main` to look like this:
+
+```go
+func main() {
+    ctx := context.Background()
+    if err := run(ctx, os.Stdout); err != nil {
+        fmt.Fprintf(os.Stderr, "%s\n", err)
+        os.Exit(1)
+    }
+}
 ```
-type Database struct {
-	DB *gorm.DB
+
+Now our `main` function is only responsible for calling `run` and handling any errors that come from
+it. And our `run` function is responsible for initializing dependencies and starting our
+application. This consolidates all our error handling to a single place, and it allows us to write
+unit tests for the `run` function that assert proper outputs.
+
+For more information on this pattern see this
+excellent [blog post](https://grafana.com/blog/2024/02/09/how-i-write-http-services-in-go-after-13-years/)
+by Matt Ryer.
+
+### Connect to PostgreSQL
+
+Next, we'll connect our application to our PostgreSQL server. We'll leverage the `run` function we
+just created as the spot to load our variables and initialize this connection.
+
+To initialize our connection we're going to use the `gorm` package and it's underlying `postgres`
+driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error
+handling) you may want to create a separate database package.
+
+First, download the `gorm` package:
+
+```sh
+go get -u gorm.io/gorm gorm.io/driver/postgres
+```
+
+Then, in `internal/database/database.go`, lets add a new function called `Connect`. This function will be responsible for connection to our database. Add the following code:
+
+```go
+
+func Connect(ctx context.Context, logger *slog.Logger, cfg Config) (*gorm.DB, error) {
+    // Create a new DB connection using environment config
+    logger.DebugContext(ctx, "Connecting to database")
+    db, err := gorm.Open(
+        postgres.Open(
+            fmt.Sprintf(
+                "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+                cfg.DBHost,
+                cfg.DBUserName,
+                cfg.DBUserPassword,
+                cfg.DBName,
+                cfg.DBPort,
+            ),
+        ),
+        &gorm.Config{},
+    )
+    if err != nil {
+        return fmt.Errorf("[in database.Connect] failed to open database: %w", err)
+    }
+
+    logger.DebugContext(ctx, "Successfully connected to database")
+
+    return db, nil
 }
 
-func ConnectDb(d gorm.Dialector, c *gorm.Config) (Database, error) {
-	db, err := gorm.Open(d, c)
-	if err != nil {
-		return Database{}, fmt.Errorf("error opening database: %w", err)
-	}
-	return Database{DB: db}, nil
+```
+
+Now, back in the `cmd/api/main.go` file, update `run` to contain the snippet below. This code will go right after `defer cancel()` inside of the `run` function. You will need to import the new database package we just added the `Connect` function too:
+
+```go
+// ... other code from run
+
+// Load and validate environment config
+cfg, err := config.New()
+if err != nil {
+    return fmt.Errorf("[in main.run] failed to load config: %w", err)
 }
-```
-We will use this `ConnectDb()` helper function in our `main.go` file to create a new connection with the database upon start-up.
 
+// Create a structured logger, which will print logs in json format to the
+// writer we specify.
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-### Test the Connection to the Database
+// Create a new DB connection using environment config
+db, err := database.Connect(ctx, logger, cfg)
+if err != nil {
+    return fmt.Errorf("[in main.run] failed to open database: %w", err)
+}
 
-You can now connect the application to the database. Add the following lines to that main function in your `cmd/http/main.go` file so it looks like below:
-```
-config, err := c.LoadConfig(".")
-	if err != nil {
-		log.Fatal("error loading configuration", err)
-	}
-	db, err := database.ConnectDb(
-		postgres.Open(
-			fmt.Sprintf(
-				"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
-				config.DBHost,
-				config.DBUserName,
-				config.DBUserPassword,
-				config.DBName,
-				config.DBPort,
-			),
-		),
-		&gorm.Config{},
-	)
-	// db, err := database.ConnectDB(config.DBHost, config.DBUserName, config.DBUserPassword, config.DBName, config.DBPort)
-	if err != nil {
-		log.Fatal("error connecting to database", err)
-	}
-	fmt.Println("Connected successfully to the database")
-```
-\* Note you may need to install the `gorm.io/driver/postgres` package
+logger.Info("Connected successfully to the database")
 
-At this point, you can now test to see if you application is able to successfully connect to the Postgres database. To do so, open a terminal in the project root directory and run the command `go run main.go`. You should see the following output:
-```
-Connected Successfully to the database
+// ... other code from run
 ```
 
-Congrats! You have managed to connect to your Postgres database from your application. 
+At this point, you can now test to see if you application is able to successfully connect to the
+Postgres database. To do so, open a terminal in the project root directory and run the bellow command. You should see logs indicating you connected to the database.
 
-If your application is unable to connect to the database, ensure that the podman container for the database is running. Additionally, verify that the environment variables set up in previous steps are being loaded correctly.
+```bash
+go run cmd/api/main.go
+```
+
+Congrats! You have managed to connect to your Postgres database from your application.
+
+If your application is unable to connect to the database, ensure that the podman container for the
+database is running. Additionally, verify that the environment variables set up in previous steps
+are being loaded correctly.
 
 ### Setting up User Model
 
-Now that we have been able to successfully able to connect to the database, we will set up some basic database utilities for the users in our application.
+Now that we can connect to the database we'll set up our user domain model. This model is our
+internal, domain specific representation of a User. Effectively it represents how a User is stored
+in our database.
 
-Create an `entites.go` file in the `database` package. This file will be used to hold the models for the structs that will be mapped to the objects in the database. Add the following struct: 
+Create a `user.go` file in the `internal/models` package. Add the following struct:
 
-```
+```go
+package models
+
 type User struct {
-	ID       uint   `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+    ID       uint
+    Name     string
+    Email    string
+    Password string
+}
+```
+Next, lets delete the `models.go` file in the models package as we wont be using this project.
+
+### Creating our User Service
+
+Next, we'll begin to build out the service layer in our application. Our service layer is where all
+of our application logic (including database access) will live. It's important to remember that
+there are many ways to structure Go applications. We're following a very basic layered architecture
+that places most of our logic and dependencies in a services package. This allows our handlers to
+focus on request and response logic, and gives us a single point to find application logic.
+
+Start by adding the following struct, constructor function, and methods to the `internal/services/users.go` file. This file will hold the
+definitions for our user service:
+
+```go
+// UsersService is a service capable of performing CRUD operations for
+// models.User models.
+type UsersService struct {
+    logger *slog.Logger
+    db     *gorm.DB
+}
+
+// NewUsersService creates a new UsersService and returns a pointer to it.
+func NewUsersService(logger *slog.Logger, db *gorm.DB) *UsersService {
+    return &UsersService{
+        logger: logger,
+        db:     db,
+    }
+}
+
+// CreateUser attempts to create the provided user, returning a fully hydrated
+// models.User or an error.
+func (s *UsersService) CreateUser(user models.User) (models.User, error) {
+    return models.User{}, nil
+}
+
+// ReadUser attempts to read a user from the database using the provided id. A
+// fully hydrated models.User or error is returned.
+func (s *UsersService) ReadUser(id uint64) (models.User, error) {
+    return models.User{}, nil
+}
+
+// UpdateUser attempts to perform an update of the user with the provided id,
+// updating, it to reflect the properties on the provided patch object. A
+// models.User or an error.
+func (s *UsersService) UpdateUser(id uint64, patch models.User) (models.User, error) {
+    return models.User{}, nil
+}
+
+// CreateUser attempts to create the provided user, returning a fully hydrated
+// models.User or an error.
+func (s *UsersService) DeleteUser(id uint64) error {
+    return nil
+}
+
+// CreateUser attempts to create the provided user, returning a fully hydrated
+// models.User or an error.
+func (s *UsersService) ListUsers(id uint64) ([]models.User, error) {
+    return []models.User{}, nil
 }
 ```
 
-### Setting up User Utilities
+We've stubbed out a basic `UsersService` capable of performing CRUD on our User model. Next we'll
+flesh out the `ReadUser` method.
 
-Next, create a file called `user.go` in the `database` package. This file will house the functionality for creating, reading, updating and deleting users in the database.
+Update the `ReadUser` method to below:
 
-We will first be creating a `GetUserByID` method on the `Database` struct to retrieve a user from the database with a given ID called `GetUserByID`.
+```go
+func (s *UsersService) ReadUser(id uint64) (models.User, error) {
+    var user models.User
 
-Here is an implementation of `GetUserByID` that you can use:
+    if err := s.db.First(&user, id).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return user, nil
+        }
+        return user, fmt.Errorf("[in services.UsersService.ReadUser] failed to read user: %w", err)
+    }
 
-```
-func (database Database) GetUserByID(id uint64) (*User, error) {
-	var user User
-	result := database.DB.First(&user, id)
-	if result.Error != nil {
-		return nil, fmt.Errorf("error getting user: %w", result.Error)
-	}
-
-	return &user, nil
+    return user, nil
 }
 ```
 
-Let's quickly walk through the structure of this function, as it will serve as a sort of template for other similar methods:
-- First, a User var is created, which will hold the information of the user we search for
-- Next, the information of the user is retrieved using the `First` method on our database connection. For documentation on this and other similar methods, see the Gorm docs [here](https://gorm.io/docs/query.html). Note that we pass a pointer for the `user` var we declared so that the information can be bound to the object.
-- Next, we check if there was an error retrieving the information, and if there was, we wrap the error and return it
-- If there was no error, we return a pointer to `user`, which contains the user information
+Let's quickly walk through the structure of this method, as it will serve as a template for other
+similar methods:
 
-Now, go through an implement similar methods with the following method signatures:
+- First we create a `user` variable to hold the information of the user we search for.
+- Next we use the `First` method on our database connection to load the first record with a matching
+  ID. For documentation on this and other similar methods, see the Gorm
+  docs [here](https://gorm.io/docs/query.html).
+    - Note that we pass a pointer to the `user` variable we declared so that the information can be
+      bound to the object.
+- Next we check if there was an error retrieving the information. If an error is present we wrap it
+  using `fmt.Errorf` and return it. More information on error wrapping can be
+  found [here](https://rollbar.com/blog/golang-wrap-and-unwrap-error/#).
+- Finally if there was no error we return the `user`.
 
-```
-func (database Database) GetUsers(name string) ([]User, error)
-func (database Database) CreateUser(user *User) (*User, error)
-func (database Database) UpdateUser(id uint64, user *User)
-func (database Database) DeleteUser(id uint64) error
-```
+Now that you've implemented the `ReadUser` method, go through an implement the other CRUD methods.
 
-These methods should leverage the `Where`, `First`, `Create`, `Model`, `Updates`, and `Delete` methods on the `DB` object on `database`. It is possible that there are other ways of implementing these methods and you should feel free to implement them as you see fit.
-
-## Service Setup
-
-Now that the database layer of our application is set up, we will set up the web server layer
-
-### Defining Models
-We will now set up a user service in the `service` package 
-
-We will first define a few structs that will be referenced later on. Begin by defining a User struct, similar to how we did in the `database` package:
-
-```
-type User struct {
-	ID       uint   `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-```
-
-This may seem redundant, since this model contains nearly the same information as the model in the `database` package did. There are many approaches to defining models like this in go. Some projects opt for defining models in a centralized `models` package, to be reused in different places throughout the program. Others define models in the packages or bounded contexts where they are used. There is no one-size-fits-all approach. It is important to come up with a design that balances separation of concerns, ease of use, minimizing boilerplate and any other concerns related to data modeling. For this project, we will define separate models in the various layers of the application and translate between them as necessary.
-
-Next define a `databaseSession` interface as follows:
-
-```
-type databaseSession interface {
-	GetUsers(name string) ([]database.User, error)
-	GetUserByID(id uint64) (*database.User, error)
-	CreateUser(user *database.User) (*database.User, error)
-	UpdateUser(id uint64, user *database.User) error
-	DeleteUser(id uint64) error
-}
-```
-
-Notice the parallels between the methods in the `databaseSession` interface and the methods we defined on the `database` in the previous section.
-
-We can now define a `UserService` struct as well as a function `NewUserService` for creating a new `UserService`:
-
-```
-type UserService struct {
-	Database databaseSession
-}
-
-func NewUserService(db databaseSession) UserService {
-	return UserService{Database: db}
-}
-```
-
-We have now defined an object (`UserService`) which will ultimately take in the `database` object that we implemented in the previous section in order to interact with the database.
-
-### Implementing UserService Methods
-
-Next we will define the methods on the `UserService`. We will start by creating a `GetUserByID` method that takes in an ID and retrieves that user from the database. Before we do this, however, we will make a helper function to translate between the user model defined in the `service` package and the user model defined in the `database` package. This can be done with the following:
-
-```
-func userFromDBUser(dbUser *database.User) User {
-	return User{
-		ID:       dbUser.ID,
-		Name:     dbUser.Name,
-		Email:    dbUser.Email,
-		Password: dbUser.Password,
-	}
-}
-```
-
-It will also be helpful to define a similar function that translate a `service.User` to a `database.User`
-
-With this helper function, we can now implement the GetUserByID function:
-
-```
-func (s UserService) GetUserByID(id uint64) (User, error) {
-	user, err := s.Database.GetUserByID(id)
-	if err != nil {
-		return User{}, fmt.Errorf("in UserService.GetUserByID: %w", err)
-	}
-	return userFromDBUser(user), nil
-}
-```
-
-Now, go through and implement methods for the following function signatures, similarly to how `GetUserByID` was implemented:
-
-```
-func (s UserService) GetUsers(name string) ([]User, error)
-func (s UserService) CreateUser(user *User) (User, error)
-func (s UserService) UpdateUser(id uint64, user *User) error
-func (s UserService) DeleteUser(id uint64) error
-```
-
-All of these methods should look similar to the following steps:
-- Leverage a method on `s.Database` to interact with the database
-- Check for errors from the call in the first step
-- Translate the data into the correct form and return
+These methods should leverage the `Where`, `First`, `Create`, `Model`, `Updates`, and `Delete`
+methods on the `db` object on `UsersService`. It is possible that there are other ways of
+implementing these methods and you should feel free to implement them as you see fit.
 
 ## Server Setup
 
-### routes.go Setup
+Now that we have a user service that can interact with the database layer, we can set up our http
+server. Our server is comprised of two main components. Routes and handlers. Routes are a
+combination of http method and path that we accept requests at. We'll start by defining a handler,
+then we'll attach it to a route, and finally we'll attach those routes to a server so we can invoke
+them.
 
-Now that we have a user service that can interact with the database layer, we can set up our gin server. We will again start by defining some interfaces which will be used by our application. 
+### Handler setup
 
-In the `routes.go` file we will first  define an `Application` interface with a single method:
+In Go, HTTP handlers are used to process HTTP requests. Our handlers will implement the
+`http.Handler` interface from the `net/http` package in the standard library (making them standard
+library compatible). This interface requires a `ServeHTTP(w http.ResponseWriter, r *http.Request)`
+method. Handlers can be also be defined as functions using the `http.HandlerFunc` type which allows
+a function with the correct signature to be used as a handler. We'll define our handlers using the
+function form.
 
-```
-type Application interface {
-	Run() error
+In the `internal/handlers` package create a new `read_user.go` file. Copy the stub implementation
+from below:
+
+```go
+func HandleReadUser(logger *slog.Logger) http.Handler {
+    return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+        // Set the status code to 200 OK
+        w.WriteHeader(http.StatusOK)
+
+        id := r.PathValue("id")
+        if id == "" {
+            http.Error(w, "not found", http.StatusNotFound)
+            return
+        }
+
+        // Write the response body, simply echo the ID back out
+        _, err := w.Write([]byte(id))
+        if err != nil {
+            // Handle error if response writing fails
+            logger.ErrorContext(r.Context(), "failed to write response", slog.String("error", err.Error()))
+            http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        }
+    })
 }
 ```
 
-Next, we will define a `userService` interface for the user service we just created:
+Notice that we're not defining a handler directly, rather we've defined a function that returns a
+handler. This allows us to pass dependencies into the outer function and access them in our handler.
 
-```
-type userService interface {
-	GetUsers(name string) ([]service.User, error)
-	GetUserByID(id uint64) (service.User, error)
-	CreateUser(user *service.User) (service.User, error)
-	UpdateUser(id uint64, user *service.User) error
-	DeleteUser(id uint64) error
+### Route setup
+
+Now that we've defined a handler we'll create a function in our `internal/routes` package that will
+be used to attach routes to an HTTP server. This will give us a single point in the future to see
+all our routes and their handlers at a glance
+
+In the `internal/routes/routes.go` file we'll define the function below:
+
+```go
+func AddRoutes(mux *http.ServeMux, logger *slog.Logger, config config.Config, usersService *services.UsersService) {
+    // Read a user
+    mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger))
 }
 ```
 
-Finally, we will create a `BlogApplication` struct as a wrapper for the `userService` (and eventually all of the other services) along with a helper method to build a new `BlogApplication`:
+### Server setup
 
-```
-type BlogApplication struct {
-	userService userService
-}
+Now that we've configured our handlers and routes we'll create an instance of an `http.Server` to
+serve them.
 
-func NewBlogApplication(userService userService) BlogApplication {
-	return BlogApplication{userService: userService}
-}
-```
+In the `internal/server/server.go` file we'll define the function below:
 
-### user.go Setup
+```go
+func NewServer(logger *slog.Logger, config config.Config, usersService *services.UsersService) http.Handler {
+    // Create a serve mux to act as our route multiplexer
+    mux := http.NewServeMux()
+    // Add our routes to the mux
+    routes.AddRoutes(
+        mux,
+        logger,
+        config,
+        usersService,
+    )
 
-Now, move over to the `cmd/http/routes/user.go` file. In here, we will implement the various handler functions that the gin engine will eventually use. Start by defining the a couple of the errors our API will return:
-
-```
-var (
-	internalError   = ErrorResponse{ErrorId: 1000, Message: "Internal service error"}
-	userNotFound    = ErrorResponse{ErrorId: 1001, Message: "Error: user not found"}
-)
-```
-
-Next, take this function `getUserByID`:
-
-
-```
-func getUserByID(s userService) func(c *gin.Context) {
-	return func(c *gin.Context) {
-		uid, err := validateID(c.Param("id"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, invalidIDError)
-			return
-		}
-		user, err := s.GetUserByID(uid)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusNotFound, userNotFound)
-			} else {
-				c.JSON(http.StatusInternalServerError, internalError)
-			}
-			return
-		}
-		c.JSON(http.StatusOK, userResponse{User: &user})
-	}
+    // Optionally configure middleware on the mux
+    var handler http.Handler = mux
+    // handler = someMiddleware(handler)
+    // handler = someMiddleware2(handler)
+    // handler = someMiddleware3(handler)
+    return handler
 }
 ```
 
-Now implement similar functions for the following method signatures:
+### Adding a server to main.go
 
-```
-func getUsers(s userService) func(c *gin.Context)
-func createUser(s userService) func(c *gin.Context)
-func updateUser(s userService) func(c *gin.Context)
-func deleteUser(s userService) func(c *gin.Context)
-```
+With our server constructor defined we can add our server to `main.go`
 
-### Gin Engine Setup
+Modify the `run` function in `main.go` to include the following below the dependencies we've
+initalized:
 
-Now that we have our handler functions set up, navigate back to `routes.go`. We can now implement the `newEngine` method that will build a gin engine and set up the routing:
-
-```
-// newEngine builds a new Gin router and configures the routes to be handled.
-func newEngine(a *BlogApplication) *gin.Engine {
-	router := gin.Default()
-
-	api := router.Group("/api")
-	api.GET("/health", health)
-
-	user := api.Group("/user")
-	{
-		user.GET("/", getUsers(a.userService))
-		user.GET("/:id", getUserByID(a.userService))
-		user.POST("/", createUser(a.userService))
-		user.PUT("/:id", updateUser(a.userService))
-		user.DELETE("/:id", deleteUser(a.userService))
-	}
-
-	return router
+```go
+usersService := services.NewUsersService(logger, db)
+svr := server.NewServer(logger, cfg, usersService)
+httpServer := &http.Server{
+    Addr:    net.JoinHostPort(cfg.Host, cfg.Port),
+    Handler: svr,
 }
+
+go func () {
+    logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr))
+    if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+        fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
+    }
+}()
+var wg sync.WaitGroup
+wg.Add(1)
+go func () {
+    defer wg.Done()
+    <-ctx.Done()
+    shutdownCtx := context.Background()
+    shutdownCtx, cancel := context.WithTimeout(shutdownCtx, 10 * time.Second)
+    defer cancel()
+    if err := httpServer.Shutdown(shutdownCtx); err != nil {
+        fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
+    }
+}()
+wg.Wait()
+return nil
 ```
 
-We can also implement a `Run()` method on the `*BlogApplication` so that it implements the `Application` interface:
+This code initializes our `services.UsersService` and an instance of our server with routes and
+middlware. This instance will act as the root handler for our `http.Server`. Finally we create a
+pointer for an `http.Server`, attach our root handler to it, and start the server in a goroutine.
 
+We include some cleanup logic in a seperate goroutine that will be run when the application exits.
+
+If we run the application we should now see logs indicating our server is running including the
+address. Try hitting our user endpoint! You can do this by using a tool like [postman](https://www.postman.com/), a VSCode extension like [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client), or using `CURL` from the command line with the following command: 
+
+```bash
+curl localhost:8000/api/users/1
 ```
-func (a *BlogApplication) Run() error {
-	engine := newEngine(a)
-	return engine.Run()
-}
-```
 
-Now that we have our gin engine set up, lets walk through generating our swagger documentation for our endpoints.
+> Note, we are passing the ID of a user as the last value in the path. Try changing this value and see what happens!
 
-### Generating Swagger Docs
+## Generating Swagger Docs
 
-To add swagger to our application, ensure that you have already installed swaggo to the project using the command below in your terminal:
+To add swagger to our application, ensure that you have already installed swaggo to the project
+using the command below in your terminal:
 
-```
+```sh
 go install github.com/swaggo/swag/cmd/swag@latest
 ```
 
-Next, we will need to provide swagger basic information to help generate our swagger documentation. Above the `Run()` method, add the following comments:
+Next, we will need to provide swagger basic information to help generate our swagger documentation.
+In `internal/routes/routes.go` add the following comments above the `AddRoutes` function:
 
 ```
-//	@title			Blog Service API
-//	@version		1.0
-//	@description	Practice Go Gin API using GORM and Postgres
-//	@termsOfService	http://swagger.io/terms/
-//	@contact.name	API Support
-//	@contact.url	http://www.swagger.io/support
-//	@contact.email	support@swagger.io
-//	@license.name	Apache 2.0
-//	@license.url	http://www.apache.org/licenses/LICENSE-2.0.html
-//	@host		localhost:8080
-//	@BasePath	/api
-// @externalDocs.description	OpenAPI
+// @title						Blog Service API
+// @version						1.0
+// @description					Practice Go Gin API using GORM and Postgres
+// @termsOfService				http://swagger.io/terms/
+// @contact.name				API Support
+// @contact.url					http://www.swagger.io/support
+// @contact.email				support@swagger.io
+// @license.name				Apache 2.0
+// @license.url					http://www.apache.org/licenses/LICENSE-2.0.html
+// @host						localhost:8000
+// @BasePath					/api
+// @externalDocs.description    OpenAPI
 // @externalDocs.url			https://swagger.io/resources/open-api/
 ```
 
-For more detailed description on what each annotation does, please see [Swaggo's Declarative Comments Format](https://github.com/swaggo/swag?tab=readme-ov-file#declarative-comments-format)
+For more detailed description on what each annotation does, please
+see [Swaggo's Declarative Comments Format](https://github.com/swaggo/swag?tab=readme-ov-file#declarative-comments-format)
 
-Next, we will add swagger comments for each of our endpoints. Head over to `cmd/http/routes/user.go`. Above the `getUserByID` function, add the following comments:
+Next, we will add swagger comments for our handler. In `internal/handlers/read_user.go` add the
+following comments above the `HandleReadUser` function:
 
 ```
-// @Summary		Fetch User
-// @Description	Fetch User by ID
-// @Tags			user
-// @Accept			json
+// @Summary		Read User
+// @Description	Read User by ID
+// @Tags		user
+// @Accept		json
 // @Produce		json
-// @Param			id	path		string	true	"User ID"
-// @Success		200	{object}	routes.userResponse
-// @Failure		400	{object}	routes.ErrorResponse
-// @Failure		404	{object}	routes.ErrorResponse
-// @Failure		500	{object}	routes.ErrorResponse
-// @Router			/user/{id} [GET]
+// @Param		id           path	    string	    true	"User ID"
+// @Success		200	         {object}	uint
+// @Failure		400	         {object}	string
+// @Failure		404	         {object}	string
+// @Failure		500	         {object}	string
+// @Router		/users/{id}  [GET]
 ```
 
-The above comments help identify to swagger important information like the path of the endpoint, any parameters or request bodies, and response types and objects. For more information about each annotation and additional annotations you will need, see [Swaggo Api Operation](https://github.com/swaggo/swag?tab=readme-ov-file#api-operation).
+The above comments give swagger important information such as the path of the endpoint, requst
+parameters, request bodies, and response types. For more information about each annotation and
+additional annotations you will need,
+see [Swaggo Api Operation](https://github.com/swaggo/swag?tab=readme-ov-file#api-operation).
 
-Now add the proper swagger comments for the following method signatures:
+Almost there! We can now attach swagger to our project and generate the documentation based off our
+comments. In the `internal/routes/routes.go` we'll add a line to the `AddRoutes` function:
 
-```
-func getUsers(s userService) func(c *gin.Context)
-func createUser(s userService) func(c *gin.Context)
-func updateUser(s userService) func(c *gin.Context)
-func deleteUser(s userService) func(c *gin.Context)
-```
-
-You are almost there! We can now attach swagger to our project and generate the documentation based off our comments. In the `newEngine` function, add the following line right below `router := gin.Default()`:
-
-```
-router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+```go
+mux.Handle(
+    "GET /swagger/*", 
+    httpSwagger.Handler(httpSwagger.URL(net.JoinHostPort(config.Host, config.Port)+"/swagger/doc.json")),
+)
 ```
 
-> **Note:** You will also need to add the following imports at the top of the file
->
-> ```
-> swaggerFiles "github.com/swaggo/files"
-> ginSwagger "github.com/swaggo/gin-swagger"
-> ```
 Next, generate the swagger documentation by running the following make command:
 
-```
+```bash
 make swag-init
 ```
 
-If successful, this should generate the swagger documentation for the project and place it in `cmd/http/docs`.
+If successful, this should generate the swagger documentation for the project and place it in
+`cmd/api/docs`.
 
-> **Important:** The documentation that was just created may contain an error at the end of the file which will need to be handled before starting the application. To fix this, proceed over to the newly generated `cmd/http/docs/docs.go` file and remove the following two lines at the end of the project:
+> **Important:** The documentation that was just created may contain an error at the end of the file
+> which will need to be handled before starting the application. To fix this, proceed over to the
+> newly generated `cmd/api/docs/docs.go` file and remove the following two lines at the end of the
+> project:
+>
 > ```
 > LeftDelim:        "{{",
 > RightDelim:       "}}",
 > ```
-> This issue appears to occur every time you generate the swagger documentation, and will be something to note as you continue working through the tech challenge
-Finally, proceed over to `cmd/http/main.go` and add the following to your list of imports. Remember to replace `[name]` with your name:
+>
+> This issue appears to occur every time you generate the swagger documentation, and will be
+> something to note as you continue working through the tech challenge
+> Finally, proceed over to `cmd/api/main.go` and add the following to your list of imports. Remember
+> to replace `[name]` with your name:
 
 ```
-_ "github.com/[name]/blog/cmd/http/docs"
+_ "github.com/[name]/blog/cmd/api/docs"
 ```
 
-Congrats! You have now generated the swagger documentation for our application! We can now start up our application and hit our endpoints!
+Congrats! You have now generated the swagger documentation for our application! We can now start up
+our application and hit our endpoints!
 
-### main.go Setup and Running Application
+We now have enough code to run the API end-to-end!
 
-We now have enough code to run the API end-to-end! Navigate to `main.go` In the `main` function, comment out or remove any code leftover from the initial setup. In the `main` function, we will first start by loading the config we set up earlier:
+At this point, you should be able to run your application. You can do this using the make command
+`make start-web-app` or using basic go build and run commands. If you encounter issues, ensure that
+your database container is running in podman, and that there are no syntax errors present in the
+code.
 
-```
-config, err := c.LoadConfig(".")
-	if err != nil {
-		log.Fatal("error loading configuration", err)
-	}
-```
+Run the application and navigate to the swagger endpoint to see your collection of routes. You can do this by going to the following URL in a web browser: http://localhost:8000/swagger/index.html. Try
+interacting with the read user route to verify it returns a response with our path parameter. Next,
+we'll finish fleshing out that handler and create the rest of our handlers and routes.
 
-Next, create a connection to the database. Note that once they have been built out, all services in the API will use this same DB connection:
+## Injecting the user service into the read user handler
 
-```
-db, err := database.ConnectDb(
-	postgres.Open(
-		fmt.Sprintf(
-			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
-			config.DBHost,
-			config.DBUserName,
-			config.DBUserPassword,
-			config.DBName,
-			config.DBPort,
-		),
-	),
-	&gorm.Config{},
-)
-if err != nil {
-	log.Fatal("error connecting to database", err)
+Now that we've verified our handler is properly handling http requests we'll implement some actual
+read user logic. To do this, we need to make our user service accessible to the handler. We already
+defined our handler as a closure, giving us a place to inject dependencies.
+
+Instead of injecting the service directly we're going to leverage a features of Go and define and
+inject a small interface.
+
+In Go, interfaces are implemented implicitly. Which makes them a fantastic tool to abstract away the
+details of a service at the point its used. Let's define the interface to see what we mean.
+
+In `internal/handlers/read_user.go` add the following interface definition to the top of the file:
+
+```go
+// userReader represents a type capable of reading a user from storage and
+// returning it or an error.
+type userReader interface {
+    ReadUser(id uint64) (models.User, error)
 }
-fmt.Println("Connected successfully to the database")
 ```
 
-Finally, we will set up the `UserService`, `BlogApplication`, and run the app:
+The Go community encourages this style of interface declaration. The interface is defined at the
+point it's consumed, which allows us to narrow down the methods to only the single `ReadUser` method
+we need. This greatly simplifies testing by simplifying the mock we need to create. This also gives
+us additional type safety in that we've guaranteed that the handler for reading a user doesn't have
+access to other functionality like deleting a user.
 
+Now that we've defined our interface we can inject it. Add an argument for the interface to the
+`HandleReadUser` function:
+
+```go
+func HandleReadUser(logger *slog.Logger, userReader userReader) http.Handler {
+    // ... handler functionality
+}
 ```
-us := service.NewUserService(db)
 
-app := routes.NewBlogApplication(us)
+And update our handler invocation in the `internal/routes/routes.go` `AddRoutes` function:
 
-log.Fatal(app.Run())
+```go
+mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger, usersService))
 ```
 
-At this point, you should be able to run your appliacation. You can do this using the make command `make start-web-app` or using basic go build and run commands. If you encounter issues, ensure that your database container is running in podman, and that there are no syntax errors present in the code.
+Notice that our user service can be supplied to `HandleReadUser` as it satisfies the `userReader`
+interface. This style of accepting interfaces at implementation, and returning structs from
+declaration is extremely popular in Go.
+
+## Hiding the read user response type
+
+A general best practice with developing API's is to define request and response models separate from
+our domain models. This means a little bit of extra mapping, but keeps our domain model from leaking
+out of our API. This also gives us some flexibility in the event a request or response doesn't
+cleanly map to a domain model.
+
+Update `internal/handlers/read_user.go` to have the following type defintion:
+
+```go
+// readUserResponse represents the response for reading a user.
+type readUserResponse struct {
+    ID       uint   `json:"id"`
+    Name     string `json:"name"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+```
+
+## Reading the user and mapping it to a response
+
+With our response type defined and our user service injected it's time to read our user model and
+map it into a response. Update the `http.HandlerFunc` returned from `HandleReadUser` to the
+following:
+
+```go
+return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+	// Read id from path parameters
+	idStr := r.PathValue("id")
+
+	// Convert the ID from string to int
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to parse id from url",
+			slog.String("id", idStr),
+			slog.String("error", err.Error()),
+        )
+
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	// Read the user
+	user, err := userReader.ReadUser(uint64(id))
+	if err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to read user",
+			slog.String("error", err.Error()),
+        )
+
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert our models.User domain model into a response model.
+	response := readUserResponse{
+		ID:       user.ID,
+		Name:     user.Name,
+		Email:    user.Email,
+		Password: user.Password,
+	}
+
+	// Encode the response model as JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.ErrorContext(
+			r.Context(),
+			"failed to encode response",
+			slog.String("error", err.Error()))
+
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+})
+```
+
+At this point we can restart the server process and hit our read user endpoint again from swagger.
+
+## Flesh out user CRUD routes / handlers
+
+Now that we've fully fleshed out the read user endpoint we can create routes and handlers for each
+of our other user CRUD operations.
+
+| Operation   | Method   | Path              | Handler File     | Handler            |
+|-------------|----------|-------------------|------------------|--------------------|
+| Create User | `POST`   | `/api/users`      | `create_user.go` | `HandleCreateUser` |
+| Update User | `PUT`    | `/api/users/{id}` | `update_user.go` | `HandleUpdateUser` |
+| Delete User | `DELETE` | `/api/users/{id}` | `delete_user.go` | `HandleDeleteUser` |
+| List Users  | `GET`    | `/api/users`      | `list_users.go`  | `HandleListUsers`  |
+
+## Input model validation
+
+One thing we still need is validation for incoming requests. We can create another single method
+interface to help with this. Create a new `handlers.go` file in the `internal/handlers` package.
+This will serve as a spot for shared handler types and logic.
+
+Add the following interface and function to the file:
+
+```go
+package handlers
+
+// validator is an object that can be validated.
+type validator interface {
+    // Valid checks the object and returns any
+    // problems. If len(problems) == 0 then
+    // the object is valid.
+    Valid(ctx context.Context) (problems map[string]string)
+}
+
+// decodeValid decodes a model from an http request and performs validation
+// on it.
+func decodeValid[T validator](r *http.Request) (T, map[string]string, error) {
+    var v T
+    if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+        return v, nil, fmt.Errorf("decode json: %w", err)
+    }
+    if problems := v.Valid(r.Context()); len(problems) > 0 {
+        return v, problems, fmt.Errorf("invalid %T: %d problems", v, len(problems))
+    }
+    return v, nil, nil
+}
+```
+
+While writing handlers for requests that have input models we can use the code above to decode
+models from the request body. Notice that `decodeValid` takes a generic that must implement the
+`validator` interface. To call the function ensure the model you're attempting to decode implements
+`validator`.
 
 ## Unit Testing
 
 ### Unit Testing Introduction
 
-It is important with any language to test your code. Go make it easy to write unit tests, with a robust built-in testing framework. For a brief introduction on unit testing in Go, check out [this YouTube video](https://www.youtube.com/watch?v=FjkSJ1iXKpg).
+It is important with any language to test your code. Go make it easy to write unit tests, with a
+robust built-in testing framework. For a brief introduction on unit testing in Go, check
+out [this YouTube video](https://www.youtube.com/watch?v=FjkSJ1iXKpg).
 
 ### Unit Testing in This Tech Challenge
 
-Unit testing is a required part of this tech challenge. There are not specific requirements for exactly how you must write your unit tests, but keep the following in mind as you go through the challenge:
+Unit testing is a required part of this tech challenge. There are not specific requirements for
+exactly how you must write your unit tests, but keep the following in mind as you go through the
+challenge:
 
-- Go prefers to use table-driven, parallel unit tests. For more information on this, check out the [Go Wiki](https://go.dev/wiki/TableDrivenTests).
-- Try to write your code in a way that is, among other things, easy to test. Go's preference for interfaces facilitates this nicely, and it can make your life easier when writing tests.
-- There are already make targets set up to run unit tests. Specifically `check-coverage`. Feel free to modify these and add more if you would like to tailor them to your own preferences.
+- Go prefers to use table-driven, parallel unit tests. For more information on this, check out
+  the [Go Wiki](https://go.dev/wiki/TableDrivenTests).
+- Try to write your code in a way that is, among other things, easy to test. Go's preference for
+  interfaces facilitates this nicely, and it can make your life easier when writing tests.
+- There are already make targets set up to run unit tests. Specifically `check-coverage`. Feel free
+  to modify these and add more if you would like to tailor them to your own preferences.
 
 ## Next Steps
 
-You are now ready to move on to the rest of the challenge. You can find the instructions for that [here](./3-Challenge-Assignment.md).
+You are now ready to move on to the rest of the challenge. You can find the instructions for
+that [here](./3-Challenge-Assignment.md).
