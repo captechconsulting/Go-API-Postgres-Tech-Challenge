@@ -249,13 +249,13 @@ db, err := sql.Open("pgx", fmt.Sprintf(
     cfg.DBPort,
 ))
 if err != nil {
-    return fmt.Errorf("[in database.Connect] failed to open database: %w", err)
+    return fmt.Errorf("[in main.run] failed to open database: %w", err)
 }
 
 // Ping the database to verify connection
 logger.DebugContext(ctx, "Pinging database")
 if err = db.PingContext(ctx); err != nil {
-    return fmt.Errorf("[in database.Connect] failed to ping database: %w", err)
+    return fmt.Errorf("[in main.run] failed to ping database: %w", err)
 }
 
 defer func() {
@@ -277,47 +277,6 @@ _ "github.com/jackc/pgx/v5/stdlib"
 ```
 
 This will import the `pgx` driver to be used by the `database/sql` package. Note that we are not explicitly using the import, but are rather importing it for effect. Behind the scenes, an `init()` function is called in the `pgx` package when its imported that loaded the database driver so it can be used by the `database/sql` package.
-
-Now, back in the `cmd/api/main.go` file, update `run` to contain the snippet below. This code will go right after `defer cancel()` inside of the `run` function. You will need to import the new database package we just added the `Connect` function too:
-
-```go
-// ... other code from run
-
-// Load and validate environment config
-cfg, err := config.New()
-if err != nil {
-    return fmt.Errorf("[in main.run] failed to load config: %w", err)
-}
-
-// Create a structured logger, which will print logs in json format to the
-// writer we specify.
-logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-    Level: cfg.LogLevel,
-}))
-
-// Create a new DB connection using environment config
-db, err := database.Connect(ctx, logger, fmt.Sprintf(
-    "host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-    cfg.DBHost,
-    cfg.DBUserName,
-    cfg.DBUserPassword,
-    cfg.DBName,
-    cfg.DBPort,
-))
-if err != nil {
-    return fmt.Errorf("[in main.run] failed to open database: %w", err)
-}
-defer func() {
-    logger.DebugContext(ctx, "Closing database connection")
-    if err = db.Close(); err != nil {
-        logger.ErrorContext(ctx, "Failed to close database connection", "err", err)
-    }
-}()
-
-logger.InfoContext(ctx, "Connected successfully to the database")
-
-// ... other code from run
-```
 
 At this point, you can now test to see if you application is able to successfully connect to the
 Postgres database. To do so, open a terminal in the project root directory and run the bellow command. You should see logs indicating you connected to the database.
