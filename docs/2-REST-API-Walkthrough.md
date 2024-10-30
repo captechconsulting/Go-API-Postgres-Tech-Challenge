@@ -635,6 +635,8 @@ Now try closing the application with `ctrl + C`. You should see some log message
 
 ## Add Middleware
 
+### Example: Adding a Logger Middleware
+
 We often will need to modify or inspect requests and responses before or after they are handled by our handlers. Middleware is a way to do this. Middleware is a function that wraps an `http.Handler` and can modify the request or response before or after the handler is called. 
 
 First, in `internal/middleware/middleware, add the following line:
@@ -708,6 +710,14 @@ httpServer := &http.Server{
 ```
 
 If you run the application now and make a request to the existing endpoint, you should see logs indicating that the request method, path, duration, and status code are being logged. Try hitting the user endpoint again and see the logs that are generated!
+
+### Assignment: Add recovery middleware
+
+Now that you have seen how to create middleware in Go, try adding a recovery middleware to the application. Recovery middleware is used to recover from panics that occur in the application. Panics are a way to handle unrecoverable errors in Go, and can be used to recover from them and return a 500 status code to the client. Bellow are the criteria for the recovery middleware:
+- The middleware should recover from panics that occur in the handlers or anything the handlers call.
+- The middleware should log the error that caused the panic.
+- The middleware should return a 500 status code to the client if a panic occurs.
+- The Middleware should be called from `main.go` after the logger middleware is added.
 
 ## Generating Swagger Docs
 
