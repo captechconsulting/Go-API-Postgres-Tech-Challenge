@@ -727,7 +727,7 @@ In `internal/routes/routes.go` add the following comments above the `AddRoutes` 
 ```
 // @title						Blog Service API
 // @version						1.0
-// @description					Practice Go Gin API using GORM and Postgres
+// @description					Practice Go API using the Standard Library and Postgres
 // @termsOfService				http://swagger.io/terms/
 // @contact.name				API Support
 // @contact.url					http://www.swagger.io/support
