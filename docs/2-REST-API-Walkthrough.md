@@ -235,7 +235,7 @@ To initialize our connection we're going to use the `database/sql` package from 
 Postgres driver. For more advanced DB connection logic (such as leveraging retries, backoffs, and error
 handling) you may want to create a separate database package.
 
-First, in `cmd/api/main.go`, lets update `run`. Since connection to the database is just startup logic, we put it hear instead of in its own package. Add the bellow code to the `run` function after to configuration and logger setup logic.:
+First, in `cmd/api/main.go`, lets update `run`. Since connection to the database is just startup logic, we put it here instead of in its own package. Add the bellow code to the `run` function after to configuration and logger setup logic.:
 
 ```go
 // Create a new DB connection using environment config
