@@ -678,6 +678,10 @@ Now that you have seen how to create middleware in Go, try adding a recovery mid
 - The middleware should return a 500 status code to the client if a panic occurs.
 - The Middleware should be called from `main.go` after the logger middleware is added.
 
+Here are some resources you can use to learn more about panics and recovery in Go:
+- [Go By Example: Recovery](https://gobyexample.com/recover)
+- [Defer, Panic, and Recover](https://blog.golang.org/defer-panic-and-recover)
+
 ## Generating Swagger Docs
 
 To add swagger to our application, we will need to provide swagger basic information to help generate our swagger documentation.
