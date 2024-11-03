@@ -114,7 +114,7 @@ colima stop
 >
 > ---
 
-### DBeaver
+### DBeaver (or a different database viewer)
 
 DBeaver is a free database viewer that we can use to interact with our database using a GUI. There
 are other tools that can be used instead, but DBeaver is a free option that we can install with
@@ -126,6 +126,8 @@ DBeaver can be installed by running the following commands:
 # install DBeaver with homebrew
 brew install --cask dbeaver-community
 ```
+
+> if you have issues with DBeaver, another good option you can try is [Beekeeper Studio](https://www.beekeeperstudio.io/)
 
 ### VSCode
 
@@ -212,6 +214,7 @@ Next, run the following commands that will install the required libraries for th
 go get github.com/caarlos0/env/v11
 go get github.com/joho/godotenv
 go get github.com/jackc/pgx/v5/stdlib
+go get github.com/DATA-DOG/go-sqlmock
 go get github.com/swaggo/http-swagger/v2
 go get github.com/swaggo/swag@latest
 go install github.com/swaggo/swag/cmd/swag@latest

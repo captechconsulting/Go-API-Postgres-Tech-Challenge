@@ -26,6 +26,8 @@
 - [Unit Testing](#unit-testing)
     - [Unit Testing Introduction](#unit-testing-introduction)
     - [Unit Testing in This Tech Challenge](#unit-testing-in-this-tech-challenge)
+    - [Example: Handler unit test](#example-handler-unit-test)
+    - [Example: Service unit test](#example-service-unit-test)
 - [Next Steps](#next-steps)
 
 
@@ -918,8 +920,13 @@ func HandleReadUser(logger *slog.Logger, userReader userReader) http.Handler {
 	})
 }
 ```
+Now that we have defined what our response model is, we can update our swagger documentation to reflect this. Update the `@Success` annotation in `internal/handlers/read_user.go` to the following:
 
-At this point we can restart the server process and hit our read user endpoint again from swagger.
+```go
+//	@Success		200	{object}	readUserResponse
+```
+
+At this point we can rerun `make swag-init` and restart the server process and hit our read user endpoint again from swagger.
 
 ## Flesh out user CRUD routes / handlers
 
@@ -932,6 +939,8 @@ of our other user CRUD operations.
 | Update User | `PUT`    | `/api/users/{id}` | `update_user.go` | `HandleUpdateUser` |
 | Delete User | `DELETE` | `/api/users/{id}` | `delete_user.go` | `HandleDeleteUser` |
 | List Users  | `GET`    | `/api/users`      | `list_users.go`  | `HandleListUsers`  |
+
+Remember to add the appropriate swagger annotations to each handler!
 
 ## Input model validation
 
@@ -992,7 +1001,7 @@ challenge:
 - There are already make targets set up to run unit tests. Specifically `check-coverage`. Feel free
   to modify these and add more if you would like to tailor them to your own preferences.
 
-### Example Unit Test
+### Example: Handler unit test
 
 Even though there are no requirements on how you write your tests, here is an example of a very basic unit test for a simple handler.
 
@@ -1006,16 +1015,16 @@ First, lets create a new handler. For this we are going to create a health check
 //	@Tags			health
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	uint
-//	@Router			/health  [GET]
+//	@Success		200		{object}	healthResponse
+//	@Router			/health	[GET]
 func HandleHealthCheck(logger *slog.Logger) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         logger.InfoContext(r.Context(), "health check called")
-	
+        
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(http.StatusOK)
-        _, _ = w.Write([]byte(`{"status": "ok"}`))
-	}
+        _ = json.NewEncoder(w).Encode(healthResponse{Status: "ok"})
+    }
 }
 ```
 
@@ -1038,7 +1047,7 @@ func TestHandleHealthCheck(t *testing.T) {
     }{
         "happy path": {
             wantStatus: 200,
-            wantBody:   `{"status": "ok"}`,
+            wantBody:   `{"status":"ok"}`,
         },
     }
     for name, tc := range tests {
@@ -1061,7 +1070,7 @@ func TestHandleHealthCheck(t *testing.T) {
             }
 
             // Check the body
-            if rec.Body.String() != tc.wantBody {
+            if strings.Trim(rec.Body.String(), "\n") != tc.wantBody {
                 t.Errorf("want body %q, got %q", tc.wantBody, rec.Body.String())
             }
         })
@@ -1075,6 +1084,104 @@ Lets break down what is happening in this test:
 - In each sub-test we are creating a new request, response recorder, and logger.
 - We then call the handler with the logger and response recorder.
 - Finally, we check the status code and body of the response recorder to ensure they match the expected values.
+
+### Example: Service unit test
+
+Now that we have looked at writting a unit test for a handler, lets look at writting a unit test for a service. For this example, we are going to write a unit test for the `ReadUser` method in the `UsersService` struct. This test will be a little more complex than the handler test, as we will need to mock the database connection. To do this, we will use the `github.com/DATA-DOG/go-sqlmock` package. 
+
+Lets create our test! Create a new file `internal/services/users_test.go` and add the following code:
+
+```go
+func TestUsersService_ReadUser(t *testing.T) {
+    testcases := map[string]struct {
+        mockCalled     bool
+        mockInputArgs  []driver.Value
+        mockOutput     *sqlmock.Rows
+        mockError      error
+        input          uint64
+        expectedOutput models.User
+        expectedError  error
+    }{
+        "happy path": {
+            mockCalled:    true,
+            mockInputArgs: []driver.Value{1},
+            mockOutput: sqlmock.NewRows([]string{"id", "name", "email", "password"}).
+                AddRow(1, "john", "john@me.com", "password123!"),
+            mockError: nil,
+            input:     1,
+            expectedOutput: models.User{
+                ID:       1,
+                Name:     "john",
+                Email:    "john@me.com",
+                Password: "password123!",
+            },
+            expectedError: nil,
+        },
+    }
+    for name, tc := range testcases {
+        t.Run(name, func(t *testing.T) {
+            db, mock, err := sqlmock.New()
+            if err != nil {
+                t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+            }
+            defer db.Close()
+
+            logger := slog.Default()
+			
+            if tc.mockCalled {
+                mock.
+                    ExpectQuery(regexp.QuoteMeta(`
+                        SELECT id,
+                               name,
+                               email,
+                               password
+                        FROM users
+                        WHERE id = $1::int
+                    `)).
+                    WithArgs(tc.mockInputArgs...).
+                    WillReturnRows(tc.mockOutput).
+                    WillReturnError(tc.mockError).
+                    Once()
+            }
+
+            userService := NewUsersService(logger, db)
+
+            output, err := userService.ReadUser(context.TODO(), tc.input)
+            if err != tc.expectedError {
+                t.Errorf("expected no error, got %v", err)
+            }
+            if output != tc.expectedOutput {
+                t.Errorf("expected %v, got %v", tc.expectedOutput, output)
+            }
+
+            if tc.mockCalled {
+                if err = mock.ExpectationsWereMet(); err != nil {
+                    t.Errorf("there were unfulfilled expectations: %s", err)
+                }
+            }
+        })
+    }
+}
+```
+
+There is a lot going on here, so lets break it down!
+- When we create our test case struct, we define some fields that will control our mock and its behavior. These fields include: 
+  - `mockCalled`, to determine if the mock should be called
+  - `mockInputArgs`, to define the input arguments to the mock
+  - `mockOutput`, to define the output of the mock, 
+  - `mockError`, to define the error the mock should return
+- Inside of the test body, we create a new mock database connection and defer its closure. We can use the `mock` to define the expected behavior of the database query and tell the mocked database what to return.
+- We then use the test case values to determine if the mock should be called, and if it should, we define the expected behavior of the mock.
+  - Note the use of `regexp.QuoteMeta` to escape the query string. This is important to ensure that the query string is matched correctly by `sqlmock`. 
+- We then create a new instance of the `UsersService` and call the `ReadUser` method with the mocked database connection.
+- Finally, we check the output and error of the method to ensure they match the expected values.
+
+Now that we have defined a basic test for the happy path, try adding other test cases to the test to test other scenarios? What if the database query fails? What if the user does not exist? 
+
+The testing patterns shown here should be ennoiugh for you to be able to fully test the rest of the application. With that being said, here are a couple of other resources you might find helpful:
+- [testify](https://github.com/stretchr/testify): A popular testing library that provides a lot of helpful utilities for writing tests such as assertions and mocks.
+- [mockery](https://vektra.github.io/mockery/latest/): A tool for generating mocks for interfaces and builds on `testify`.
+- [Go Wiki: TableDrivenTests](https://go.dev/wiki/TableDrivenTests): A great resource for learning about table-driven tests in Go.
 
 ## Next Steps
 
