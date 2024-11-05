@@ -658,7 +658,7 @@ Next, in `cmd/api/main.go`, add the following code to the `run` function between
 
 ```go
 // Wrap the mux with middleware
-wrappedMux := middleare.Logger(logger)(mux)
+wrappedMux := middleware.Logger(logger)(mux)
 ```
 Finally, update the `httpServer` definition to use the `wrappedMux` instead of the `mux`:
 
