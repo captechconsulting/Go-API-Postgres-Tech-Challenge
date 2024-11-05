@@ -1008,6 +1008,11 @@ Even though there are no requirements on how you write your tests, here is an ex
 First, lets create a new handler. For this we are going to create a health check endpoint. To do this, create the file `internal/handlers/health.go` and add the following code:
 
 ```go
+// healthResponse represents the response for the health check.
+type healthResponse struct {
+	Status string `json:"status"`
+}
+
 // HandleHealthCheck handles the health check endpoint
 //
 //	@Summary		Health Check
