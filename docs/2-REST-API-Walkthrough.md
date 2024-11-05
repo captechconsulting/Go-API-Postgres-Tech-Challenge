@@ -600,7 +600,7 @@ Now try closing the application with `ctrl + C`. You should see some log message
 
 We often will need to modify or inspect requests and responses before or after they are handled by our handlers. Middleware is a way to do this. Middleware is a function that wraps an `http.Handler` and can modify the request or response before or after the handler is called. 
 
-First, in `internal/middleware/middleware, add the following line:
+First, in `internal/middleware/middleware.go`, add the following line:
 
 ```go
 // Middleware is a function that wraps an http.Handler.
