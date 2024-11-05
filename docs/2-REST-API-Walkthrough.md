@@ -492,7 +492,7 @@ all our routes and their handlers at a glance
 In the `internal/routes/routes.go` file we'll define the function below:
 
 ```go
-func AddRoutes(mux *http.ServeMux, logger *slog.Logger, config config.Config, usersService *services.UsersService) {
+func AddRoutes(mux *http.ServeMux, logger *slog.Logger, usersService *services.UsersService) {
     // Read a user
     mux.Handle("GET /api/users/{id}", handlers.HandleReadUser(logger))
 }
