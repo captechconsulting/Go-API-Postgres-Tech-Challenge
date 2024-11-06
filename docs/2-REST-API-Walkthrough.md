@@ -1177,7 +1177,7 @@ There is a lot going on here, so lets break it down!
 
 Now that we have defined a basic test for the happy path, try adding other test cases to the test to test other scenarios? What if the database query fails? What if the user does not exist? 
 
-The testing patterns shown here should be ennoiugh for you to be able to fully test the rest of the application. With that being said, here are a couple of other resources you might find helpful:
+The testing patterns shown here should be enough for you to be able to fully test the rest of the application. With that being said, here are a couple of other resources you might find helpful:
 - [testify](https://github.com/stretchr/testify): A popular testing library that provides a lot of helpful utilities for writing tests such as assertions and mocks.
 - [mockery](https://vektra.github.io/mockery/latest/): A tool for generating mocks for interfaces and builds on `testify`.
 - [Go Wiki: TableDrivenTests](https://go.dev/wiki/TableDrivenTests): A great resource for learning about table-driven tests in Go.
