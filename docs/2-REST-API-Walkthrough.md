@@ -572,7 +572,7 @@ Lets talk about whats going on here:
 - First, we are initializing an instance of our `UserService` by passing the logger and database connection to it.
 - next, we are creating a server mux, passing it to `AddRoutes()` to add routes, and then creating an instance of the `http.Server` struct that includes the address of our web server and our mux.
 - After that, we are setting up graceful shutdown logic. We do this by: 
-    - Starting a Go routine and the immediately blocking until we receive a cancellation signal across a chanel. This lets us wait until the server is starting to shutdown before running any shutdown logic we need. 
+    - Starting a Go routine and the immediately blocking until we receive a cancellation signal across a channel. This lets us wait until the server is starting to shutdown before running any shutdown logic we need. 
     - After the signal is received, we create a cancellation context so that when we call `httpServer.Shutdown`, it can only run for a fixed amount of time. 
     - After all the shutdown logic has run, we call `done()` which will unblock our `run()` function and let us finally exit.
 - Next, we start our server by calling httpServer.ListenAndServe() and checking any errors that are returned.
