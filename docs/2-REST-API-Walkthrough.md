@@ -551,17 +551,12 @@ go func() {
 }()
 
 // Start the http server
+// 
+// once httpServer.Shutdown is called, it will always return a
+// http.ErrServerClosed error and we don't care about that error.
 logger.InfoContext(ctx, "listening", slog.String("address", httpServer.Addr))
 if err = httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-    switch {
-    // once httpServer.Shutdown is called, it will always return an
-    // http.ErrServerClosed error and we don't care about that error so we will
-    // break.
-    case errors.Is(err, http.ErrServerClosed):
-        break
-    default:
-        return fmt.Errorf("[in main.run] failed to listen and serve: %w", err)
-    }
+    return fmt.Errorf("[in main.run] failed to listen and serve: %w", err)
 }
 
 // block until the server is shut down or an error occurs
