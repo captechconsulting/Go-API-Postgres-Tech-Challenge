@@ -74,6 +74,7 @@ Below are the details for the required and optional endpoints
 - [ ] If an error is encountered by the application, an informative error message should be returned to the client.
 - [ ] The swagger spec should document all the required and optional endpoints, including their parameters, request body structure, and response types.
 - [ ] Your project should include unit tests with 80% test coverage.
+- [ ] You should have panic recovery middleware to handle any panics that occur in your application.
 
 ## Grading Procedure
 
