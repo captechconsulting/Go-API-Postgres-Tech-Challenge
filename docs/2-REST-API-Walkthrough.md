@@ -1140,7 +1140,7 @@ func TestUsersService_ReadUser(t *testing.T) {
                     `)).
                     WithArgs(tc.mockInputArgs...).
                     WillReturnRows(tc.mockOutput).
-                    WillReturnError(tc.mockError).
+                    WillReturnError(tc.mockError)
             }
 
             userService := NewUsersService(logger, db)
