@@ -158,7 +158,7 @@ Other useful VS Code extensions include:
 ## Repository Setup
 
 Create your own repository using the `Use this template` in the top right of the webpage. Make
-yourself the owner, and give the repository the same name as the template (golang-techchallenge1).
+yourself the owner, and give the repository the same name as the template (Go-API-Postgres-Tech-Challenge).
 Once your repository is cloned locally, you are all set to move on to the next step.
 
 ## Database Setup
