@@ -78,9 +78,4 @@ Below are the details for the required and optional endpoints
 
 ## Grading Procedure
 
-Once you are ready for your assignment to be graded, ensure that the main branch in your fork is up-to-date with your latest code. Then send a message in the tech challenge tab in the [Go CoP Teams Channel](https://teams.microsoft.com/l/channel/19%3A3c94e4b29e984baa9a8706b3927a4045%40thread.skype/CoP%20-%20Go?groupId=ba34e7be-d35e-4965-9e36-5e86ae0329c7&tenantId=ae9d6e9a-cc18-4204-ac29-43a0ccb860e8). Challenges are reviewed weekly. Include the following in your message:
-- Your name
-- Link to your repo
-- Any additional comments you think the graders should see
-
-Once you send us a message, we will get in contact. Ensure that the graders will have access to the repository.
+Once you completed your project, ensure that the main branch in your fork is up-to-date with your latest code. We recommend that you work with a Go SME to review and grade your project. This feedback is key for you to keep improving your Go skills!
