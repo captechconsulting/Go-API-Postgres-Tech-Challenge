@@ -30,13 +30,13 @@ If you dont have git installed, the above command will prompt you to install it.
 For this tech challenge, we are assuming that you are developing on a Mac. As such, we will be using
 homebrew to install a lot of dependencies.
 
-Homebrew can be installed by running the following commands
+Due to IT policies installing Homebrew directly from the shell is disabled. Alternatively, you can
+install Homebrew by downloading the pkg installer from the [GitHub repository releases page](https://github.com/Homebrew/brew/releases).
+
+After successful installation, Homebrew can be configured by running the following commands
 
 ```bash
-# install homebrew
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# if you are on an Apple Silicone Mac, run the following to add homebrew to the PATH
+# if you are on an Apple Silicon Mac, run the following to add homebrew to the PATH
 (echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> ~/.zprofile eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # validate that homebrew is correctly installed. You may need to restart your terminal first
